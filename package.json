@@ -1,0 +1,19 @@
+{
+  "name": "korail",
+  "private": true,
+  "packageManager": "pnpm@10.27.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "pnpm --filter @korail/backend start:dev",
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm -r --if-present lint",
+    "test": "pnpm -r --if-present test",
+    "dev:backend": "pnpm --filter @korail/backend start:dev",
+    "build:backend": "pnpm --filter @korail/backend build",
+    "lint:backend": "pnpm --filter @korail/backend lint",
+    "test:backend": "pnpm --filter @korail/backend test"
+  }
+}
