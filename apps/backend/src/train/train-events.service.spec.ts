@@ -4,6 +4,7 @@ import { EventEmitter } from 'events';
 import { Direction } from 'src/korail/interface/train.interface';
 import { KorailService } from 'src/korail/korail.service';
 import type { Train } from './interface/train.interface';
+import { TrainIngestionService } from './train-ingestion.service';
 import {
   TRAIN_UPDATED_EVENT,
   TrainEventsService,
@@ -11,6 +12,12 @@ import {
 
 describe('TrainEventsService', () => {
   let korailService: jest.Mocked<Pick<KorailService, 'getTrains'>>;
+  let trainIngestionService: jest.Mocked<
+    Pick<
+      TrainIngestionService,
+      'recordSnapshot' | 'recordDelta' | 'refreshHourlyRollup'
+    >
+  >;
   let eventEmitter: EventEmitter2;
   let service: TrainEventsService;
 
@@ -18,10 +25,16 @@ describe('TrainEventsService', () => {
     korailService = {
       getTrains: jest.fn(),
     };
+    trainIngestionService = {
+      recordSnapshot: jest.fn().mockResolvedValue(undefined),
+      recordDelta: jest.fn().mockResolvedValue(undefined),
+      refreshHourlyRollup: jest.fn().mockResolvedValue(undefined),
+    };
     eventEmitter = new EventEmitter2();
     service = new TrainEventsService(
       korailService as unknown as KorailService,
       eventEmitter,
+      trainIngestionService as unknown as TrainIngestionService,
     );
   });
 
@@ -45,12 +58,14 @@ describe('TrainEventsService', () => {
     service.onModuleInit();
 
     const request = new MockRequest();
-    const subscription = service.createEventsStream(request).subscribe((event) => {
-      events.push({
-        type: event.type,
-        data: event.data,
+    const subscription = service
+      .createEventsStream(request)
+      .subscribe((event) => {
+        events.push({
+          type: event.type,
+          data: event.data,
+        });
       });
-    });
 
     await flushPromises();
 
@@ -192,7 +207,7 @@ describe('TrainEventsService', () => {
       data: {
         train: movedTrain,
         previousGeometry: baseTrain.geometry,
-        polledAt: expect.any(String),
+        polledAt: expect.any(String) as string,
       },
     });
 
@@ -247,6 +262,10 @@ function createTrain(overrides: Partial<Train> = {}): Train {
 }
 
 async function flushPromises() {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
   await Promise.resolve();
   await Promise.resolve();
 }

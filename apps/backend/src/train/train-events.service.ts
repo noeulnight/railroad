@@ -21,6 +21,7 @@ import {
   diffTrains,
   type TrainDelta,
 } from './utils/diff-trains.util';
+import { TrainIngestionService } from './train-ingestion.service';
 
 const TRAIN_POLL_INTERVAL_MS = 10_000;
 export const TRAIN_CREATED_EVENT = 'train.created';
@@ -43,6 +44,7 @@ export class TrainEventsService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly korailService: KorailService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly trainIngestionService: TrainIngestionService,
   ) {}
 
   public onModuleInit() {
@@ -283,9 +285,20 @@ export class TrainEventsService implements OnModuleInit, OnModuleDestroy {
     const previousSnapshot = this.latestSnapshot;
     const hasPreviousSnapshot = this.lastPolledAt !== undefined;
     const nextSnapshot = buildTrainSnapshot(trains);
+    const deltas = hasPreviousSnapshot
+      ? diffTrains(previousSnapshot, trains, polledAt)
+      : [];
 
     this.latestSnapshot = nextSnapshot;
     this.lastPolledAt = polledAt;
+
+    await this.trainIngestionService.recordSnapshot(trains, polledAt);
+
+    for (const delta of deltas) {
+      await this.trainIngestionService.recordDelta(delta);
+    }
+
+    await this.trainIngestionService.refreshHourlyRollup(trains, polledAt);
 
     const snapshotEvent = this.getSnapshotEventData();
     if (snapshotEvent) {
@@ -295,8 +308,6 @@ export class TrainEventsService implements OnModuleInit, OnModuleDestroy {
     if (!hasPreviousSnapshot) {
       return;
     }
-
-    const deltas = diffTrains(previousSnapshot, trains, polledAt);
     for (const delta of deltas) {
       this.emitDelta(delta);
     }

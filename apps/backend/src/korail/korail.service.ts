@@ -8,6 +8,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
 import { firstValueFrom } from 'rxjs';
 import type { Train } from 'src/train/interface/train.interface';
+import {
+  KorailTimeInfo,
+  Schedule,
+  TimeInfo,
+} from './interface/schedule.interface';
 
 const STATIONS_CACHE_KEY = 'STATIONS';
 const STATIONS_TTL_MS = 1000 * 60 * 60 * 24;
@@ -67,6 +72,24 @@ export class KorailService {
         delay: properties.delay || 0,
       };
     });
+  }
+
+  public async getSchedule(id: string, date: string): Promise<Schedule[]> {
+    const [stations, response] = await Promise.all([
+      this.getStations(),
+      firstValueFrom(
+        this.httpService.post<KorailTimeInfo>(
+          `https://www.korail.com/classes/com.korail.mobile.trainsInfo.TrainSchedule`,
+          { txtRunDt: date, txtTrnNo: id, Device: 'BH', Version: '999999999' },
+          { headers: { 'Content-Type': 'multipart/form-data' } },
+        ),
+      ),
+    ]);
+    const stationsByName = this.getStationsByName(stations);
+
+    return (response.data.time_infos?.time_info ?? []).map((timeInfo) =>
+      this.mapSchedule(timeInfo, stationsByName),
+    );
   }
 
   private async fetchStations(): Promise<Station[]> {
@@ -131,5 +154,65 @@ export class KorailService {
     }
 
     return stationsByName.get(normalizedName);
+  }
+
+  private mapSchedule(
+    timeInfo: TimeInfo,
+    stationsByName: Map<string, Station>,
+  ): Schedule {
+    const stationName =
+      timeInfo.h_stop_rs_stn_nm?.trim() || timeInfo.h_stop_rs_stn_cd;
+    const station = this.findStation(stationName, stationsByName) ?? {
+      name: stationName,
+    };
+    const baseDate =
+      this.parseScheduleDateOnly(timeInfo.h_arv_dt) ??
+      this.parseScheduleDateOnly(timeInfo.h_dpt_dt) ??
+      new Date();
+    const arrivalTime = this.parseScheduleDateTime(
+      timeInfo.h_arv_dt,
+      timeInfo.h_arv_tm,
+    );
+    const departureTime = this.parseScheduleDateTime(
+      timeInfo.h_dpt_dt,
+      timeInfo.h_dpt_tm,
+    );
+
+    return {
+      id: timeInfo.h_stop_rs_stn_cd,
+      date: arrivalTime ?? departureTime ?? baseDate,
+      delay: Number(timeInfo.h_act_arv_dlay_tnum || '0'),
+      station,
+      arrivalTime,
+      departureTime,
+    };
+  }
+
+  private parseScheduleDateTime(date: string, time: string): Date | undefined {
+    if (!/^\d{8}$/.test(date)) {
+      return undefined;
+    }
+
+    if (!/^\d{6}$/.test(time) || time === '999999') {
+      return undefined;
+    }
+
+    try {
+      return parseKorailDateTime(`${date}${time}`);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private parseScheduleDateOnly(date: string): Date | undefined {
+    if (!/^\d{8}$/.test(date)) {
+      return undefined;
+    }
+
+    try {
+      return parseKorailDateTime(`${date}000000`);
+    } catch {
+      return undefined;
+    }
   }
 }

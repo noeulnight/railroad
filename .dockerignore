@@ -1,0 +1,9 @@
+node_modules
+.pnpm-store
+.turbo
+.git
+dist
+apps/*/dist
+apps/*/node_modules
+coverage
+.DS_Store

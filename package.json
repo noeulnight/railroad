@@ -7,13 +7,20 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "pnpm --filter @korail/backend start:dev",
-    "build": "pnpm -r --if-present build",
-    "lint": "pnpm -r --if-present lint",
-    "test": "pnpm -r --if-present test",
+    "dev": "turbo dev --parallel",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "dev:frontend": "turbo dev --filter=@korail/frontend",
     "dev:backend": "pnpm --filter @korail/backend start:dev",
+    "build:frontend": "turbo build --filter=@korail/frontend",
     "build:backend": "pnpm --filter @korail/backend build",
+    "lint:frontend": "turbo lint --filter=@korail/frontend",
     "lint:backend": "pnpm --filter @korail/backend lint",
+    "test:frontend": "turbo test --filter=@korail/frontend",
     "test:backend": "pnpm --filter @korail/backend test"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.8"
   }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "korail",
+  "name": "@korail/frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,11 +10,23 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@radix-ui/react-slot": "^1.2.4",
+    "@radix-ui/react-tabs": "^1.1.13",
     "@tailwindcss/vite": "^4.2.1",
+    "axios": "^1.13.6",
+    "chart.js": "^4.5.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "leaflet": "^1.9.4",
+    "lucide-react": "^0.577.0",
     "react": "19.0.0-rc.1",
+    "react-chartjs-2": "^5.3.1",
     "react-dom": "19.0.0-rc.1",
     "react-leaflet": "5.0.0-rc.2",
+    "react-router-dom": "^7.13.1",
+    "tailwind-merge": "^3.5.0",
+    "tailwind-scrollbar-hide": "^4.0.0",
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
@@ -24,10 +36,12 @@
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "autoprefixer": "^10.4.27",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "postcss": "^8.5.8",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
     "vite": "^7.3.1"
