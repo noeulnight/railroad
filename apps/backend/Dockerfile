@@ -37,4 +37,4 @@ COPY --from=build /app/apps/backend ./apps/backend
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "pnpm --filter @korail/backend prisma:migrate:deploy && node apps/backend/dist/main.js"]
+CMD ["sh", "-c", "pnpm --filter @korail/backend prisma:migrate:deploy && node apps/backend/dist/src/main.js"]
