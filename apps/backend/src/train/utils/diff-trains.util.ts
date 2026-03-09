@@ -6,6 +6,8 @@ import type {
   TrainUpdatedEventData,
 } from '../interface/train.interface';
 
+const MAX_REASONABLE_TRAIN_SPEED_KPH = 400;
+
 export type TrainDelta =
   | {
       type: 'created';
@@ -157,7 +159,17 @@ function calculateSpeedKph(
     return undefined;
   }
 
-  return distanceKm / (elapsedMs / 3_600_000);
+  const speedKph = distanceKm / (elapsedMs / 3_600_000);
+
+  if (
+    !Number.isFinite(speedKph) ||
+    speedKph <= 0 ||
+    speedKph > MAX_REASONABLE_TRAIN_SPEED_KPH
+  ) {
+    return undefined;
+  }
+
+  return speedKph;
 }
 
 function calculateDistanceKm(

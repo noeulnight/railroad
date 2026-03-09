@@ -84,6 +84,32 @@ describe('diffTrains', () => {
     expect(delta.data.train.speedKph).toBeUndefined();
   });
 
+  it('keeps speed empty when the calculated speed is unrealistically high', () => {
+    const previousSnapshot = buildTrainSnapshot([createTrain()]);
+    const nextTrains = [
+      createTrain({
+        geometry: {
+          bearing: 45,
+          longitude: 127,
+          latitude: 41.5,
+        },
+      }),
+    ];
+
+    const [delta] = diffTrains(
+      previousSnapshot,
+      nextTrains,
+      previousPolledAt,
+      polledAt,
+    );
+
+    if (!delta || delta.type !== 'updated') {
+      throw new Error('Expected an updated delta');
+    }
+
+    expect(delta.data.train.speedKph).toBeUndefined();
+  });
+
   it('returns a created delta for a new train id', () => {
     const previousSnapshot = buildTrainSnapshot([createTrain()]);
     const nextTrains = [createTrain(), createTrain({ id: '2' })];
