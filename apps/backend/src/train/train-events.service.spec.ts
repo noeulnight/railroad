@@ -77,7 +77,10 @@ describe('TrainEventsService', () => {
     });
 
     eventEmitter.emit(TRAIN_UPDATED_EVENT, {
-      train: movedTrain,
+      train: {
+        ...movedTrain,
+        speedKph: 120,
+      },
       previousGeometry: baseTrain.geometry,
       polledAt: '2026-03-09T00:00:10.000Z',
     });
@@ -89,7 +92,10 @@ describe('TrainEventsService', () => {
       {
         type: 'updated',
         data: {
-          train: movedTrain,
+          train: {
+            ...movedTrain,
+            speedKph: 120,
+          },
           previousGeometry: baseTrain.geometry,
           polledAt: '2026-03-09T00:00:10.000Z',
         },
@@ -202,7 +208,7 @@ describe('TrainEventsService', () => {
     await flushPromises();
 
     expect(complete).not.toHaveBeenCalled();
-    expect(events[1]).toEqual({
+    expect(events[1]).toMatchObject({
       type: 'updated',
       data: {
         train: movedTrain,
@@ -210,6 +216,15 @@ describe('TrainEventsService', () => {
         polledAt: expect.any(String) as string,
       },
     });
+
+    const updatedData = events[1]?.data as
+      | {
+          train: Train;
+          previousGeometry: Train['geometry'];
+          polledAt: string;
+        }
+      | undefined;
+    expect(updatedData?.train.speedKph).toBeGreaterThan(0);
 
     request.emit('close');
     service.onModuleDestroy();

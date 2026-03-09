@@ -8,7 +8,7 @@ import {
 import "leaflet/dist/leaflet.css";
 import { MapZoomTracker } from "../components/MapZoomTracker";
 import { TrainPopup } from "../components/TrainPopup";
-import { getTrainColor } from "../lib/format";
+import { formatTrainSpeed, getTrainColor } from "../lib/format";
 import type { DashboardData } from "../types/dashboard";
 import L from "leaflet";
 
@@ -108,6 +108,7 @@ function createTrainIcon(
 ) {
   const primaryColor = getTrainPrimaryColor(train.type);
   const directionColor = getTrainColor(train.direction);
+  const speedLabel = formatTrainSpeed(train.speedKph);
   const bearingScale = Number.isFinite(train.geometry.bearing)
     ? train.geometry.bearing
     : 0;
@@ -124,12 +125,16 @@ function createTrainIcon(
         </div>
         ${
           showLabel
-            ? `<div style="padding:2px 8px;border-radius:9999px;background:${primaryColor};color:#ffffff;font-size:11px;line-height:1.2;font-weight:700;white-space:nowrap;box-shadow:0 4px 12px rgba(15,23,42,0.12);">${trainLabel}</div>`
+            ? `<div style="display:flex;align-items:center;gap:6px;padding:2px 8px;border-radius:9999px;background:${primaryColor};color:#ffffff;font-size:11px;line-height:1.2;font-weight:700;white-space:nowrap;box-shadow:0 4px 12px rgba(15,23,42,0.12);"><span>${trainLabel}</span>${
+                speedLabel
+                  ? `<span style="padding:1px 6px;border-radius:9999px;background:rgba(255,255,255,0.18);font-size:10px;font-weight:700;">${escapeHtml(speedLabel)}</span>`
+                  : ""
+              }</div>`
             : ""
         }
       </div>
     `,
-    iconSize: showLabel ? [96, 24] : [24, 24],
+    iconSize: showLabel ? [speedLabel ? 168 : 96, 24] : [24, 24],
     iconAnchor: [12, 12],
     popupAnchor: [0, -12],
   });

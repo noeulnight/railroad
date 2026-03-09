@@ -2,7 +2,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
 import { ArrowRight, Clock } from "lucide-react";
 import { getTrainSchedule } from "../lib/api";
-import { formatDateTime } from "../lib/format";
+import { formatDateTime, formatTrainSpeed } from "../lib/format";
 import type { DashboardData, TrainScheduleItem } from "../types/dashboard";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +95,11 @@ export function TrainPopup(props: {
                   : undefined
               }
             />
+            <InfoItem
+              label="현재 속도"
+              className="col-span-2"
+              value={formatTrainSpeed(train.speedKph) ?? "-"}
+            />
           </div>
         </TabsContent>
         <TabsContent value="schedule">
@@ -177,9 +182,10 @@ function InfoItem(props: {
   value: string;
   valueAccent?: string;
   subValue?: string;
+  className?: string;
 }) {
   return (
-    <div className="w-full rounded-md bg-slate-50 p-2">
+    <div className={cn("w-full rounded-md bg-slate-50 p-2", props.className)}>
       <div className="text-xs text-slate-500">{props.label}</div>
       <div className="flex items-center gap-1.5">
         <span className="text-md font-bold text-slate-900">{props.value}</span>

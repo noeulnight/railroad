@@ -243,7 +243,10 @@ export class TrainEventsService implements OnModuleInit, OnModuleDestroy {
     const trains = Array.from(this.latestSnapshot.values());
 
     return {
-      trains,
+      trains: trains.map((train) => ({
+        ...train,
+        speedKph: undefined,
+      })),
       total: trains.length,
       polledAt: this.lastPolledAt,
     };
@@ -283,10 +286,11 @@ export class TrainEventsService implements OnModuleInit, OnModuleDestroy {
 
     const polledAt = new Date().toISOString();
     const previousSnapshot = this.latestSnapshot;
-    const hasPreviousSnapshot = this.lastPolledAt !== undefined;
+    const previousPolledAt = this.lastPolledAt;
+    const hasPreviousSnapshot = previousPolledAt !== undefined;
     const nextSnapshot = buildTrainSnapshot(trains);
     const deltas = hasPreviousSnapshot
-      ? diffTrains(previousSnapshot, trains, polledAt)
+      ? diffTrains(previousSnapshot, trains, previousPolledAt, polledAt)
       : [];
 
     this.latestSnapshot = nextSnapshot;

@@ -26,6 +26,14 @@ export function getTrainColor(direction: Direction) {
   return direction === "UP" ? "#2563eb" : "#dc2626";
 }
 
+export function formatTrainSpeed(speedKph?: number) {
+  if (typeof speedKph !== "number" || !Number.isFinite(speedKph)) {
+    return undefined;
+  }
+
+  return `${Math.round(speedKph)} km/h`;
+}
+
 export function shouldShowStation(zoom: number, grade?: number) {
   if (grade === undefined) {
     return false;
