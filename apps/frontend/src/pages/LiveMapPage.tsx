@@ -1,8 +1,4 @@
-import {
-  MapContainer,
-  Marker,
-  TileLayer,
-} from "react-leaflet";
+import { MapContainer, Marker, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import { MapZoomTracker } from "../components/MapZoomTracker";
 import { TrainPopup } from "../components/TrainPopup";
@@ -11,7 +7,6 @@ import type { DashboardData, Train } from "../types/dashboard";
 import L from "leaflet";
 import { memo, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
 
 const INITIAL_POSITION: [number, number] = [36.17, 127.83];
 const MAP_BOUNDS = L.latLngBounds([32.5, 123.5], [39.0, 132.0]);
@@ -19,11 +14,11 @@ const TRAIN_MARKER_EASING_DURATION_MS = 1400;
 
 export function LiveMapPage(props: { data: DashboardData }) {
   const { data } = props;
-  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedTrainId, setSelectedTrainId] = useState<string>();
   const [isFollowingTrain, setIsFollowingTrain] = useState(false);
-  const zoomTargetType = searchParams.get("type");
-  const zoomTargetId = searchParams.get("id");
+  const [urlSelection, setUrlSelection] = useState(readTrainSelectionFromUrl);
+  const zoomTargetType = urlSelection.type;
+  const zoomTargetId = urlSelection.id;
   const attemptedZoomTargetRef = useRef<string | undefined>(undefined);
   const selectedTrain = data.trains.find(
     (train) => train.id === selectedTrainId,
@@ -36,17 +31,28 @@ export function LiveMapPage(props: { data: DashboardData }) {
     : undefined;
 
   const updateTrainSearchParams = (train?: Pick<Train, "id" | "type">) => {
-    const nextParams = new URLSearchParams(searchParams);
+    const nextParams = new URLSearchParams(window.location.search);
 
     if (!train) {
       nextParams.delete("type");
       nextParams.delete("id");
     } else {
-      nextParams.set("type", normalizeTrainQueryParam(train.type) ?? train.type);
+      nextParams.set(
+        "type",
+        normalizeTrainQueryParam(train.type) ?? train.type,
+      );
       nextParams.set("id", train.id);
     }
 
-    setSearchParams(nextParams, { replace: true });
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${window.location.pathname}${nextParams.toString() ? `?${nextParams.toString()}` : ""}${window.location.hash}`,
+    );
+    setUrlSelection({
+      type: nextParams.get("type"),
+      id: nextParams.get("id"),
+    });
   };
 
   const selectTrain = (train: Pick<Train, "id" | "type">, follow = true) => {
@@ -60,6 +66,18 @@ export function LiveMapPage(props: { data: DashboardData }) {
     setIsFollowingTrain(false);
     updateTrainSearchParams(undefined);
   };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setUrlSelection(readTrainSelectionFromUrl());
+    };
+
+    window.addEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
 
   useEffect(() => {
     const requestedType = normalizeTrainQueryParam(zoomTargetType);
@@ -174,7 +192,7 @@ const StaticMapLayers = memo(function StaticMapLayers(props: {
 
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
-        subdomains={['a', 'b', 'c', 'd']}
+        subdomains={["a", "b", "c", "d"]}
         attribution='&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         maxZoom={20}
         minZoom={8}
@@ -335,6 +353,15 @@ function normalizeTrainQueryParam(value?: string | null) {
   return value?.trim().toLowerCase().replaceAll(/\s+/g, "").replaceAll("-", "");
 }
 
+function readTrainSelectionFromUrl() {
+  const searchParams = new URLSearchParams(window.location.search);
+
+  return {
+    type: searchParams.get("type"),
+    id: searchParams.get("id"),
+  };
+}
+
 function createTrainIcon(
   train: DashboardData["trains"][number],
   zoomLevel: number,
@@ -390,14 +417,20 @@ function areTrainMarkerPropsEqual(
     train: Train;
     zoomLevel: number;
     isSelected: boolean;
-    onTrainToggle: (train: Pick<Train, "id" | "type">, follow?: boolean) => void;
+    onTrainToggle: (
+      train: Pick<Train, "id" | "type">,
+      follow?: boolean,
+    ) => void;
     onTrainClear: () => void;
   }>,
   next: Readonly<{
     train: Train;
     zoomLevel: number;
     isSelected: boolean;
-    onTrainToggle: (train: Pick<Train, "id" | "type">, follow?: boolean) => void;
+    onTrainToggle: (
+      train: Pick<Train, "id" | "type">,
+      follow?: boolean,
+    ) => void;
     onTrainClear: () => void;
   }>,
 ) {
