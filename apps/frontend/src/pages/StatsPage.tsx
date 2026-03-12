@@ -20,10 +20,29 @@ import { formatChartLabel } from "../lib/format";
 import type { DashboardData } from "../types/dashboard";
 import { buildChartOptions } from "../components/stats/chartSetup";
 
+function getThemeColor(name: string, fallback: string) {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  const value = getComputedStyle(document.documentElement)
+    .getPropertyValue(name)
+    .trim();
+
+  return value || fallback;
+}
+
 export function StatsPage(props: { data: DashboardData }) {
   const { data } = props;
   const statsData = useStatsDashboardData(data.lastPolledAt);
   const liveStats = statsData.liveStats;
+  const chart1 = getThemeColor("--chart-1", "#1d4ed8");
+  const chart1Fill = getThemeColor("--chart-1-fill", "rgba(29, 78, 216, 0.16)");
+  const chart2 = getThemeColor("--chart-2", "#ef4444");
+  const chart2Fill = getThemeColor("--chart-2-fill", "rgba(239, 68, 68, 0.14)");
+  const chart3 = getThemeColor("--chart-3", "#06b6d4");
+  const chart4 = getThemeColor("--chart-4", "#14b8a6");
+  const chart5 = getThemeColor("--chart-5", "#f97316");
 
   const trendChartData = {
     labels: statsData.trendPoints.map((point) =>
@@ -33,16 +52,16 @@ export function StatsPage(props: { data: DashboardData }) {
       {
         label: "운행 열차",
         data: statsData.trendPoints.map((point) => point.activeTrainCount),
-        borderColor: "#0f172a",
-        backgroundColor: "rgba(15,23,42,0.12)",
+        borderColor: chart1,
+        backgroundColor: chart1Fill,
         fill: true,
         tension: 0.3,
       },
       {
         label: "지연률",
         data: statsData.trendPoints.map((point) => point.delayRate),
-        borderColor: "#ef4444",
-        backgroundColor: "rgba(239,68,68,0.12)",
+        borderColor: chart2,
+        backgroundColor: chart2Fill,
         fill: true,
         tension: 0.3,
       },
@@ -55,19 +74,13 @@ export function StatsPage(props: { data: DashboardData }) {
       {
         label: "운행 편성",
         data: liveStats?.byType.map((item) => item.count) ?? [],
-        backgroundColor: [
-          "#0f172a",
-          "#2563eb",
-          "#06b6d4",
-          "#14b8a6",
-          "#f97316",
-        ],
+        backgroundColor: [chart1, getThemeColor("--brand", "#0054a6"), chart3, chart4, chart5],
         borderRadius: 12,
       },
       {
         label: "지연률",
         data: liveStats?.byType.map((item) => item.delayRate) ?? [],
-        backgroundColor: "#ef4444",
+        backgroundColor: chart2,
         borderRadius: 12,
       },
     ],
@@ -81,7 +94,7 @@ export function StatsPage(props: { data: DashboardData }) {
         data: statsData.stationStats
           .slice(0, 8)
           .map((item) => item.activeTrainCount),
-        backgroundColor: "#2563eb",
+        backgroundColor: getThemeColor("--brand", "#0054a6"),
         borderRadius: 10,
       },
       {
@@ -89,14 +102,14 @@ export function StatsPage(props: { data: DashboardData }) {
         data: statsData.stationStats
           .slice(0, 8)
           .map((item) => item.delayedTrainCount),
-        backgroundColor: "#f97316",
+        backgroundColor: chart5,
         borderRadius: 10,
       },
     ],
   };
 
   return (
-    <div className="min-h-screen px-3 pb-10 pt-24 text-slate-950 sm:px-4">
+    <div className="min-h-screen px-3 pb-10 pt-24 text-foreground sm:px-4">
       <div className="mx-auto max-w-6xl">
         <h1 className="my-8 text-2xl font-bold sm:text-3xl">운행 통계</h1>
         <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
@@ -315,7 +328,7 @@ export function StatsPage(props: { data: DashboardData }) {
 function StatItem(props: { label: string; value: string }) {
   return (
     <div className="bg-card text-card-foreground flex flex-col rounded-xl p-4 shadow-sm sm:p-6">
-      <p className="text-sm text-slate-600">{props.label}</p>
+      <p className="text-muted-foreground text-sm">{props.label}</p>
       <p className="text-2xl font-semibold sm:text-3xl">{props.value}</p>
     </div>
   );

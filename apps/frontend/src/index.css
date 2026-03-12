@@ -21,6 +21,45 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --radius: 1rem;
+  --brand: #0054a6;
+  --surface-elevated: rgba(255, 255, 255, 0.88);
+  --chart-1: #1d4ed8;
+  --chart-1-fill: rgba(29, 78, 216, 0.16);
+  --chart-2: #ef4444;
+  --chart-2-fill: rgba(239, 68, 68, 0.14);
+  --chart-3: #06b6d4;
+  --chart-4: #14b8a6;
+  --chart-5: #f97316;
+}
+
+:root.dark {
+  --background: oklch(0.17 0.01 260);
+  --foreground: oklch(0.96 0.01 260);
+  --card: oklch(0.24 0.01 260 / 0.92);
+  --card-foreground: oklch(0.96 0.01 260);
+  --popover: oklch(0.21 0.01 260);
+  --popover-foreground: oklch(0.96 0.01 260);
+  --primary: oklch(0.72 0.12 250);
+  --primary-foreground: oklch(0.18 0.02 250);
+  --secondary: oklch(0.28 0.01 260);
+  --secondary-foreground: oklch(0.96 0.01 260);
+  --muted: oklch(0.28 0.01 260);
+  --muted-foreground: oklch(0.75 0.01 260);
+  --accent: oklch(0.3 0.01 260);
+  --accent-foreground: oklch(0.96 0.01 260);
+  --destructive: oklch(0.64 0.22 25);
+  --border: oklch(0.34 0.01 260);
+  --input: oklch(0.34 0.01 260);
+  --ring: oklch(0.63 0.09 250);
+  --brand: #7db7ff;
+  --surface-elevated: rgba(18, 24, 39, 0.9);
+  --chart-1: #7dd3fc;
+  --chart-1-fill: rgba(125, 211, 252, 0.18);
+  --chart-2: #fb7185;
+  --chart-2-fill: rgba(251, 113, 133, 0.16);
+  --chart-3: #60a5fa;
+  --chart-4: #2dd4bf;
+  --chart-5: #fb923c;
 }
 
 @theme {
@@ -55,7 +94,17 @@
 body {
   min-height: 100vh;
   color: var(--foreground);
-  background-color: #eeeeee;
+  background:
+    radial-gradient(circle at top, color-mix(in oklab, var(--primary) 12%, transparent), transparent 40%),
+    var(--background);
+  transition:
+    background-color 180ms ease,
+    color 180ms ease,
+    background 180ms ease;
+}
+
+#root {
+  min-height: 100vh;
 }
 
 .leaflet-popup-content-wrapper {

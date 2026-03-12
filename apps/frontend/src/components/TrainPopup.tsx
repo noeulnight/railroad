@@ -41,7 +41,7 @@ export function TrainPopup(props: {
   }, [train]);
 
   return (
-    <div className="relative flex h-full min-w-80 flex-col space-y-4 overflow-hidden p-4">
+    <div className="text-card-foreground relative flex h-full min-w-80 flex-col space-y-4 overflow-hidden bg-card p-4">
       <img
         alt={train.type}
         className="absolute right-0 top-0 w-24 rounded-sm object-top"
@@ -52,7 +52,7 @@ export function TrainPopup(props: {
         <div className="text-xl font-bold" style={{ color: primaryColor }}>
           {train.type}#{train.id}
         </div>
-        <div className="text-sm text-slate-500">
+        <div className="text-muted-foreground text-sm">
           <span>{train.direction === "UP" ? "상행" : "하행"}</span> ·{" "}
           <span className={train.delay > 0 ? "text-red-500" : ""}>
             지연 {train.delay}분
@@ -93,7 +93,7 @@ export function TrainPopup(props: {
           </div>
         </div>
 
-        <div className="h-px w-full bg-slate-200" />
+        <div className="bg-border h-px w-full" />
 
         <div className="min-h-0 flex-1">
           <ScheduleTab
@@ -106,7 +106,7 @@ export function TrainPopup(props: {
         </div>
       </div>
 
-      <div className="flex items-center gap-1 text-xs text-slate-500">
+      <div className="text-muted-foreground flex items-center gap-1 text-xs">
         <Clock className="size-3" /> 갱신: {formatDateTime(lastPolledAt)}
       </div>
     </div>
@@ -122,7 +122,7 @@ function ScheduleTab(props: {
 }) {
   if (props.loading) {
     return (
-      <div className="rounded-md bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
+      <div className="bg-muted text-muted-foreground rounded-md px-3 py-6 text-center text-sm">
         시간표를 불러오는 중입니다.
       </div>
     );
@@ -130,7 +130,7 @@ function ScheduleTab(props: {
 
   if (props.errorMessage) {
     return (
-      <div className="rounded-md bg-slate-50 px-3 py-6 text-center text-sm text-red-500">
+      <div className="bg-muted rounded-md px-3 py-6 text-center text-sm text-red-500">
         {props.errorMessage}
       </div>
     );
@@ -138,7 +138,7 @@ function ScheduleTab(props: {
 
   if (props.items.length === 0) {
     return (
-      <div className="rounded-md bg-slate-50 px-3 py-6 text-center text-sm text-slate-500">
+      <div className="bg-muted text-muted-foreground rounded-md px-3 py-6 text-center text-sm">
         시간표 데이터가 없습니다.
       </div>
     );
@@ -165,16 +165,17 @@ function ScheduleTab(props: {
           return (
             <div
               key={`${item.id}-${item.arrivalTime}`}
-              className={cn("rounded-md bg-slate-50 px-3 py-2", {
-                "bg-green-100": props.currentStation === item.station.name,
+              className={cn("bg-muted rounded-md px-3 py-2", {
+                "bg-primary/12 border border-primary/20":
+                  props.currentStation === item.station.name,
               })}
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="font-semibold text-slate-900 text-sm">
+                <div className="text-sm font-semibold text-foreground">
                   {item.station.name}
                 </div>
                 <div
-                  className={cn("text-xs text-slate-500", {
+                  className={cn("text-muted-foreground text-xs", {
                     "text-red-500": isDelayed,
                   })}
                 >
@@ -187,7 +188,7 @@ function ScheduleTab(props: {
               </div>
               <div
                 className={cn(
-                  "mt-1 flex items-center justify-between text-sm text-slate-600",
+                  "text-muted-foreground mt-1 flex items-center justify-between text-sm",
                 )}
               >
                 <span>
@@ -262,10 +263,10 @@ function InfoItem(props: {
   className?: string;
 }) {
   return (
-    <div className={cn("w-full rounded-md bg-slate-50 p-2", props.className)}>
-      <div className="text-xs text-slate-500">{props.label}</div>
+    <div className={cn("bg-muted w-full rounded-md p-2", props.className)}>
+      <div className="text-muted-foreground text-xs">{props.label}</div>
       <div className="flex items-center gap-1.5">
-        <span className="text-md font-bold text-slate-900">{props.value}</span>
+        <span className="text-md font-bold text-foreground">{props.value}</span>
         {props.valueAccent ? (
           <span className="text-xs font-semibold text-red-500">
             {props.valueAccent}
@@ -273,7 +274,9 @@ function InfoItem(props: {
         ) : null}
       </div>
       {props.subValue ? (
-        <div className="text-[12px] text-slate-400">{props.subValue}</div>
+        <div className="text-muted-foreground/70 text-[12px]">
+          {props.subValue}
+        </div>
       ) : null}
     </div>
   );

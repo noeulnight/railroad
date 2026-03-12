@@ -12,8 +12,11 @@ const INITIAL_POSITION: [number, number] = [36.17, 127.83];
 const MAP_BOUNDS = L.latLngBounds([32.5, 123.5], [39.0, 132.0]);
 const TRAIN_MARKER_EASING_DURATION_MS = 1400;
 
-export function LiveMapPage(props: { data: DashboardData }) {
-  const { data } = props;
+export function LiveMapPage(props: {
+  data: DashboardData;
+  theme: "light" | "dark";
+}) {
+  const { data, theme } = props;
   const [selectedTrainId, setSelectedTrainId] = useState<string>();
   const [isFollowingTrain, setIsFollowingTrain] = useState(false);
   const [urlSelection, setUrlSelection] = useState(readTrainSelectionFromUrl);
@@ -122,7 +125,7 @@ export function LiveMapPage(props: { data: DashboardData }) {
           <div className="pointer-events-auto relative flex h-[calc(100vh-7.5rem)] w-full max-w-sm flex-col items-end gap-2 md:h-full md:w-auto">
             <button
               aria-label="열차 정보 닫기"
-              className="z-10 flex px-3 py-2 items-center justify-center rounded-sm bg-white text-slate-500 shadow-lg cursor-pointer font-bold"
+              className="bg-card text-muted-foreground border-border/70 z-10 flex cursor-pointer items-center justify-center rounded-sm border px-3 py-2 font-bold shadow-lg"
               onClick={clearSelectedTrain}
               type="button"
             >
@@ -152,6 +155,7 @@ export function LiveMapPage(props: { data: DashboardData }) {
         className="h-screen w-screen"
       >
         <StaticMapLayers
+          theme={theme}
           onZoomChange={data.setZoomLevel}
           onUserMoveStart={selectedTrain ? clearSelectedTrain : undefined}
           followPosition={isFollowingTrain ? selectedTrainPosition : undefined}
@@ -171,14 +175,21 @@ export function LiveMapPage(props: { data: DashboardData }) {
 }
 
 const StaticMapLayers = memo(function StaticMapLayers(props: {
+  theme: "light" | "dark";
   onZoomChange: (zoom: number) => void;
   onUserMoveStart?: () => void;
   followPosition?: [number, number];
   focusKey?: string;
   focusZoom?: number;
 }) {
-  const { onZoomChange, onUserMoveStart, followPosition, focusKey, focusZoom } =
-    props;
+  const {
+    theme,
+    onZoomChange,
+    onUserMoveStart,
+    followPosition,
+    focusKey,
+    focusZoom,
+  } = props;
 
   return (
     <>
@@ -191,7 +202,7 @@ const StaticMapLayers = memo(function StaticMapLayers(props: {
       />
 
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
+        url={`https://{s}.basemaps.cartocdn.com/${theme === "dark" ? "dark_nolabels" : "light_nolabels"}/{z}/{x}/{y}{r}.png`}
         subdomains={["a", "b", "c", "d"]}
         attribution='&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         maxZoom={20}
