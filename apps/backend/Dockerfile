@@ -16,8 +16,8 @@ RUN pnpm install --frozen-lockfile
 
 COPY . .
 
-RUN pnpm --filter @korail/backend prisma:generate
-RUN pnpm --filter @korail/backend build
+RUN pnpm --filter @railroad/backend prisma:generate
+RUN pnpm --filter @railroad/backend build
 
 FROM node:22-bookworm-slim AS runtime
 
@@ -37,4 +37,4 @@ COPY --from=build /app/apps/backend ./apps/backend
 
 EXPOSE 3000
 
-CMD ["sh", "-c", "pnpm --filter @korail/backend prisma:migrate:deploy && node apps/backend/dist/src/main.js"]
+CMD ["sh", "-c", "pnpm --filter @railroad/backend prisma:migrate:deploy && node apps/backend/dist/src/main.js"]

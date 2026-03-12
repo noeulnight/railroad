@@ -18,7 +18,7 @@ COPY . .
 ARG VITE_API_BASE_URL=""
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
-RUN pnpm --filter @korail/frontend build
+RUN pnpm --filter @railroad/frontend build
 
 FROM nginx:1.27-alpine AS runtime
 
