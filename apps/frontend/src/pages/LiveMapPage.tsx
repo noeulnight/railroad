@@ -1,8 +1,6 @@
 import {
-  CircleMarker,
   MapContainer,
   Marker,
-  Popup,
   TileLayer,
 } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
@@ -141,7 +139,6 @@ export function LiveMapPage(props: { data: DashboardData }) {
           followPosition={isFollowingTrain ? selectedTrainPosition : undefined}
           focusKey={selectedTrain?.id}
           focusZoom={selectedTrain ? Math.max(data.zoomLevel, 15) : undefined}
-          visibleStations={data.visibleStations}
         />
         <TrainMarkersLayer
           trains={data.trains}
@@ -161,16 +158,9 @@ const StaticMapLayers = memo(function StaticMapLayers(props: {
   followPosition?: [number, number];
   focusKey?: string;
   focusZoom?: number;
-  visibleStations: DashboardData["visibleStations"];
 }) {
-  const {
-    onZoomChange,
-    onUserMoveStart,
-    followPosition,
-    focusKey,
-    focusZoom,
-    visibleStations,
-  } = props;
+  const { onZoomChange, onUserMoveStart, followPosition, focusKey, focusZoom } =
+    props;
 
   return (
     <>
@@ -196,26 +186,6 @@ const StaticMapLayers = memo(function StaticMapLayers(props: {
         maxZoom={20}
         minZoom={8}
       />
-
-      {visibleStations.map((station) => (
-        <CircleMarker
-          key={station.name}
-          center={[station.geometry!.latitude, station.geometry!.longitude]}
-          radius={3}
-          pathOptions={{
-            color: "#0f172a",
-            weight: 1,
-            fillColor: "#f8fafc",
-            fillOpacity: 0.9,
-          }}
-        >
-          <Popup>
-            <div className="min-w-36">
-              <div className="mb-1 font-bold">{station.name}</div>
-            </div>
-          </Popup>
-        </CircleMarker>
-      ))}
     </>
   );
 });
