@@ -6,11 +6,15 @@ export function MapZoomTracker(props: {
   followPosition?: [number, number];
   focusKey?: string;
   focusZoom?: number;
+  onUserMoveStart?: () => void;
 }) {
   const map = useMap();
   const previousFocusKeyRef = useRef<string | undefined>(undefined);
 
   useMapEvents({
+    dragstart: () => {
+      props.onUserMoveStart?.();
+    },
     zoomend: (event) => {
       props.onZoomChange(event.target.getZoom());
     },

@@ -11,7 +11,6 @@ import { TrainPopup } from "../components/TrainPopup";
 import { getTrainColor } from "../lib/format";
 import type { DashboardData, Train } from "../types/dashboard";
 import L from "leaflet";
-import type { Dispatch, SetStateAction } from "react";
 import { memo, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
@@ -22,8 +21,9 @@ const TRAIN_MARKER_EASING_DURATION_MS = 1400;
 
 export function LiveMapPage(props: { data: DashboardData }) {
   const { data } = props;
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedTrainId, setSelectedTrainId] = useState<string>();
+  const [isFollowingTrain, setIsFollowingTrain] = useState(false);
   const zoomTargetType = searchParams.get("type");
   const zoomTargetId = searchParams.get("id");
   const attemptedZoomTargetRef = useRef<string | undefined>(undefined);
@@ -36,6 +36,32 @@ export function LiveMapPage(props: { data: DashboardData }) {
         number,
       ])
     : undefined;
+
+  const updateTrainSearchParams = (train?: Pick<Train, "id" | "type">) => {
+    const nextParams = new URLSearchParams(searchParams);
+
+    if (!train) {
+      nextParams.delete("type");
+      nextParams.delete("id");
+    } else {
+      nextParams.set("type", normalizeTrainQueryParam(train.type) ?? train.type);
+      nextParams.set("id", train.id);
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  const selectTrain = (train: Pick<Train, "id" | "type">, follow = true) => {
+    setSelectedTrainId(train.id);
+    setIsFollowingTrain(follow);
+    updateTrainSearchParams(train);
+  };
+
+  const clearSelectedTrain = () => {
+    setSelectedTrainId(undefined);
+    setIsFollowingTrain(false);
+    updateTrainSearchParams(undefined);
+  };
 
   useEffect(() => {
     const requestedType = normalizeTrainQueryParam(zoomTargetType);
@@ -63,7 +89,14 @@ export function LiveMapPage(props: { data: DashboardData }) {
     }
 
     attemptedZoomTargetRef.current = zoomTargetKey;
-    setSelectedTrainId(matchingTrain.id);
+    const animationFrameId = requestAnimationFrame(() => {
+      setSelectedTrainId(matchingTrain.id);
+      setIsFollowingTrain(true);
+    });
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
   }, [data.trains, zoomTargetId, zoomTargetType]);
 
   return (
@@ -74,9 +107,7 @@ export function LiveMapPage(props: { data: DashboardData }) {
             <button
               aria-label="열차 정보 닫기"
               className="z-10 flex px-3 py-2 items-center justify-center rounded-sm bg-white text-slate-500 shadow-lg cursor-pointer font-bold"
-              onClick={() => {
-                setSelectedTrainId(undefined);
-              }}
+              onClick={clearSelectedTrain}
               type="button"
             >
               <X className="size-4 mr-2" />
@@ -106,7 +137,8 @@ export function LiveMapPage(props: { data: DashboardData }) {
       >
         <StaticMapLayers
           onZoomChange={data.setZoomLevel}
-          followPosition={selectedTrainPosition}
+          onUserMoveStart={selectedTrain ? clearSelectedTrain : undefined}
+          followPosition={isFollowingTrain ? selectedTrainPosition : undefined}
           focusKey={selectedTrain?.id}
           focusZoom={selectedTrain ? Math.max(data.zoomLevel, 15) : undefined}
           visibleStations={data.visibleStations}
@@ -114,7 +146,9 @@ export function LiveMapPage(props: { data: DashboardData }) {
         <TrainMarkersLayer
           trains={data.trains}
           zoomLevel={data.zoomLevel}
-          setSelectedTrainId={setSelectedTrainId}
+          selectedTrainId={selectedTrainId}
+          onTrainToggle={selectTrain}
+          onTrainClear={clearSelectedTrain}
         />
       </MapContainer>
     </div>
@@ -123,26 +157,35 @@ export function LiveMapPage(props: { data: DashboardData }) {
 
 const StaticMapLayers = memo(function StaticMapLayers(props: {
   onZoomChange: (zoom: number) => void;
+  onUserMoveStart?: () => void;
   followPosition?: [number, number];
   focusKey?: string;
   focusZoom?: number;
   visibleStations: DashboardData["visibleStations"];
 }) {
-  const { onZoomChange, followPosition, focusKey, focusZoom, visibleStations } =
-    props;
+  const {
+    onZoomChange,
+    onUserMoveStart,
+    followPosition,
+    focusKey,
+    focusZoom,
+    visibleStations,
+  } = props;
 
   return (
     <>
       <MapZoomTracker
         onZoomChange={onZoomChange}
+        onUserMoveStart={onUserMoveStart}
         followPosition={followPosition}
         focusKey={focusKey}
         focusZoom={focusZoom}
       />
 
       <TileLayer
-        url="https://tiles.osm.kr/hot/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap 기여자</a>'
+        url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
+        subdomains={['a', 'b', 'c', 'd']}
+        attribution='&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap contributors</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
         maxZoom={20}
         minZoom={8}
       />
@@ -180,9 +223,12 @@ const StaticMapLayers = memo(function StaticMapLayers(props: {
 const TrainMarkersLayer = memo(function TrainMarkersLayer(props: {
   trains: DashboardData["trains"];
   zoomLevel: number;
-  setSelectedTrainId: Dispatch<SetStateAction<string | undefined>>;
+  selectedTrainId?: string;
+  onTrainToggle: (train: Pick<Train, "id" | "type">, follow?: boolean) => void;
+  onTrainClear: () => void;
 }) {
-  const { trains, zoomLevel, setSelectedTrainId } = props;
+  const { trains, zoomLevel, selectedTrainId, onTrainToggle, onTrainClear } =
+    props;
 
   return (
     <>
@@ -191,7 +237,9 @@ const TrainMarkersLayer = memo(function TrainMarkersLayer(props: {
           key={train.id}
           train={train}
           zoomLevel={zoomLevel}
-          setSelectedTrainId={setSelectedTrainId}
+          isSelected={selectedTrainId === train.id}
+          onTrainToggle={onTrainToggle}
+          onTrainClear={onTrainClear}
         />
       ))}
     </>
@@ -201,9 +249,11 @@ const TrainMarkersLayer = memo(function TrainMarkersLayer(props: {
 const AnimatedTrainMarker = memo(function AnimatedTrainMarker(props: {
   train: Train;
   zoomLevel: number;
-  setSelectedTrainId: Dispatch<SetStateAction<string | undefined>>;
+  isSelected: boolean;
+  onTrainToggle: (train: Pick<Train, "id" | "type">, follow?: boolean) => void;
+  onTrainClear: () => void;
 }) {
-  const { train, zoomLevel, setSelectedTrainId } = props;
+  const { train, zoomLevel, isSelected, onTrainToggle, onTrainClear } = props;
   const targetLatitude = train.geometry.latitude;
   const targetLongitude = train.geometry.longitude;
   const targetPosition = [targetLatitude, targetLongitude] as [number, number];
@@ -274,9 +324,12 @@ const AnimatedTrainMarker = memo(function AnimatedTrainMarker(props: {
       icon={createTrainIcon(train, zoomLevel)}
       eventHandlers={{
         click: () => {
-          setSelectedTrainId((current) =>
-            current === train.id ? undefined : train.id,
-          );
+          if (isSelected) {
+            onTrainClear();
+            return;
+          }
+
+          onTrainToggle(train);
         },
       }}
     />
@@ -366,17 +419,23 @@ function areTrainMarkerPropsEqual(
   previous: Readonly<{
     train: Train;
     zoomLevel: number;
-    setSelectedTrainId: Dispatch<SetStateAction<string | undefined>>;
+    isSelected: boolean;
+    onTrainToggle: (train: Pick<Train, "id" | "type">, follow?: boolean) => void;
+    onTrainClear: () => void;
   }>,
   next: Readonly<{
     train: Train;
     zoomLevel: number;
-    setSelectedTrainId: Dispatch<SetStateAction<string | undefined>>;
+    isSelected: boolean;
+    onTrainToggle: (train: Pick<Train, "id" | "type">, follow?: boolean) => void;
+    onTrainClear: () => void;
   }>,
 ) {
   return (
     previous.zoomLevel === next.zoomLevel &&
-    previous.setSelectedTrainId === next.setSelectedTrainId &&
+    previous.isSelected === next.isSelected &&
+    previous.onTrainToggle === next.onTrainToggle &&
+    previous.onTrainClear === next.onTrainClear &&
     previous.train.id === next.train.id &&
     previous.train.type === next.train.type &&
     previous.train.direction === next.train.direction &&
