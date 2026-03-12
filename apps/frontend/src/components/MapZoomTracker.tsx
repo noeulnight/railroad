@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useMap, useMapEvents } from "react-leaflet";
 
 export function MapZoomTracker(props: {
@@ -8,6 +8,7 @@ export function MapZoomTracker(props: {
   focusZoom?: number;
 }) {
   const map = useMap();
+  const previousFocusKeyRef = useRef<string | undefined>(undefined);
 
   useMapEvents({
     zoomend: (event) => {
@@ -25,9 +26,15 @@ export function MapZoomTracker(props: {
 
   useEffect(() => {
     if (!props.followPosition || !props.focusKey) {
+      previousFocusKeyRef.current = props.focusKey;
       return;
     }
 
+    if (previousFocusKeyRef.current === props.focusKey) {
+      return;
+    }
+
+    previousFocusKeyRef.current = props.focusKey;
     const nextZoom = props.focusZoom ?? map.getZoom();
     map.flyTo(props.followPosition, nextZoom, { animate: true });
   }, [map, props.focusKey, props.followPosition, props.focusZoom]);

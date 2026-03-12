@@ -27,135 +27,17 @@ export class StatsService {
   constructor(private readonly prisma: PrismaService) {}
 
   public async getLiveStats(): Promise<LiveStatsResponse> {
-    const latestSample = await this.prisma.trainSnapshotSample.findFirst({
-      orderBy: { sampledAt: 'desc' },
-      select: { sampledAt: true },
-    });
+    const latestSampledAt = await this.getLatestSampledAt();
 
-    if (!latestSample) {
-      return {
-        sampledAt: new Date(0).toISOString(),
-        totals: {
-          totalTrains: 0,
-          delayedTrains: 0,
-          delayRate: 0,
-          avgDelay: 0,
-          maxDelay: 0,
-        },
-        delayBuckets: {
-          under5m: 0,
-          under10m: 0,
-          under20m: 0,
-          over20m: 0,
-        },
-        byType: [],
-        byDirection: [],
-        byStation: [],
-        topDelayed: [],
-      };
+    if (!latestSampledAt) {
+      return buildEmptyLiveStats();
     }
 
-    const rows = await this.prisma.trainSnapshotSample.findMany({
-      where: { sampledAt: latestSample.sampledAt },
+    const rows = await this.getSnapshotRows(latestSampledAt, {
       orderBy: [{ delayMinutes: 'desc' }, { trainId: 'asc' }],
     });
 
-    const delayedRows = rows.filter((row) => row.delayMinutes > 0);
-    const totalDelay = rows.reduce((sum, row) => sum + row.delayMinutes, 0);
-    const byTypeMap = new Map<
-      string,
-      {
-        type: string;
-        count: number;
-        delayedCount: number;
-        totalDelay: number;
-      }
-    >();
-    const byDirectionMap = new Map<'UP' | 'DOWN', number>();
-    const byStationMap = new Map<string, number>();
-
-    for (const row of rows) {
-      const typeEntry = byTypeMap.get(row.type) ?? {
-        type: row.type,
-        count: 0,
-        delayedCount: 0,
-        totalDelay: 0,
-      };
-      typeEntry.count += 1;
-      typeEntry.totalDelay += row.delayMinutes;
-      if (row.delayMinutes > 0) {
-        typeEntry.delayedCount += 1;
-      }
-      byTypeMap.set(row.type, typeEntry);
-
-      const direction = row.direction as 'UP' | 'DOWN';
-      byDirectionMap.set(direction, (byDirectionMap.get(direction) ?? 0) + 1);
-
-      if (row.currentStationName) {
-        byStationMap.set(
-          row.currentStationName,
-          (byStationMap.get(row.currentStationName) ?? 0) + 1,
-        );
-      }
-    }
-
-    return {
-      sampledAt: latestSample.sampledAt.toISOString(),
-      totals: {
-        totalTrains: rows.length,
-        delayedTrains: delayedRows.length,
-        delayRate:
-          rows.length === 0
-            ? 0
-            : round((delayedRows.length / rows.length) * 100),
-        avgDelay: rows.length === 0 ? 0 : round(totalDelay / rows.length),
-        maxDelay: rows.reduce(
-          (maxDelay, row) => Math.max(maxDelay, row.delayMinutes),
-          0,
-        ),
-      },
-      delayBuckets: {
-        under5m: rows.filter(
-          (row) => row.delayMinutes > 0 && row.delayMinutes < 5,
-        ).length,
-        under10m: rows.filter(
-          (row) => row.delayMinutes >= 5 && row.delayMinutes < 10,
-        ).length,
-        under20m: rows.filter(
-          (row) => row.delayMinutes >= 10 && row.delayMinutes < 20,
-        ).length,
-        over20m: rows.filter((row) => row.delayMinutes >= 20).length,
-      },
-      byType: Array.from(byTypeMap.values())
-        .map((entry) => ({
-          type: entry.type,
-          count: entry.count,
-          delayedCount: entry.delayedCount,
-          delayRate: round((entry.delayedCount / entry.count) * 100),
-          avgDelay: round(entry.totalDelay / entry.count),
-        }))
-        .sort((left, right) => right.count - left.count),
-      byDirection: Array.from(byDirectionMap.entries()).map(
-        ([direction, count]) => ({
-          direction,
-          count,
-        }),
-      ),
-      byStation: Array.from(byStationMap.entries())
-        .map(([stationName, count]) => ({
-          stationName,
-          count,
-        }))
-        .sort((left, right) => right.count - left.count)
-        .slice(0, 10),
-      topDelayed: delayedRows.slice(0, 10).map((row) => ({
-        trainId: row.trainId,
-        type: row.type,
-        delay: row.delayMinutes,
-        currentStationName: row.currentStationName ?? undefined,
-        nextStationName: row.nextStationName ?? undefined,
-      })),
-    };
+    return mapLiveStats(latestSampledAt, rows);
   }
 
   public async getTrendStats(
@@ -179,51 +61,25 @@ export class StatsService {
         orderBy: { bucketStart: 'asc' },
       });
 
-      return rows.map((row) => ({
-        bucketStart: row.bucketStart.toISOString(),
-        activeTrainCount: row.activeTrainCount,
-        delayedTrainCount: row.delayedTrainCount,
-        delayRate:
-          row.activeTrainCount === 0
-            ? 0
-            : round((row.delayedTrainCount / row.activeTrainCount) * 100),
-        avgDelay: row.avgDelay,
-        maxDelay: row.maxDelay,
-        createdCount: row.createdCount,
-        removedCount: row.removedCount,
-      }));
+      return rows.map(mapHourlyTrendRow);
     }
 
     const rows = await this.prisma.$queryRaw<TrendRow[]>(
       buildTrendQuery(start, end, bucket),
     );
 
-    return rows.map((row) => ({
-      bucketStart: row.bucketStart.toISOString(),
-      activeTrainCount: Number(row.activeTrainCount),
-      delayedTrainCount: Number(row.delayedTrainCount),
-      delayRate: Number(row.delayRate),
-      avgDelay: Number(row.avgDelay),
-      maxDelay: Number(row.maxDelay),
-      createdCount: Number(row.createdCount),
-      removedCount: Number(row.removedCount),
-    }));
+    return rows.map(mapRawTrendRow);
   }
 
   public async getStationStats(): Promise<StationStatsResponseItem[]> {
-    const latestSample = await this.prisma.trainSnapshotSample.findFirst({
-      orderBy: { sampledAt: 'desc' },
-      select: { sampledAt: true },
-    });
+    const latestSampledAt = await this.getLatestSampledAt();
 
-    if (!latestSample) {
+    if (!latestSampledAt) {
       return [];
     }
 
     const [samples, stations] = await Promise.all([
-      this.prisma.trainSnapshotSample.findMany({
-        where: { sampledAt: latestSample.sampledAt },
-      }),
+      this.getSnapshotRows(latestSampledAt),
       this.prisma.station.findMany(),
     ]);
 
@@ -276,18 +132,13 @@ export class StatsService {
   }
 
   public async getSegmentStats(): Promise<SegmentStatsResponseItem[]> {
-    const latestSample = await this.prisma.trainSnapshotSample.findFirst({
-      orderBy: { sampledAt: 'desc' },
-      select: { sampledAt: true },
-    });
+    const latestSampledAt = await this.getLatestSampledAt();
 
-    if (!latestSample) {
+    if (!latestSampledAt) {
       return [];
     }
 
-    const samples = await this.prisma.trainSnapshotSample.findMany({
-      where: { sampledAt: latestSample.sampledAt },
-    });
+    const samples = await this.getSnapshotRows(latestSampledAt);
 
     const segments = new Map<
       string,
@@ -374,6 +225,196 @@ export class StatsService {
       })),
     };
   }
+
+  private async getLatestSampledAt(): Promise<Date | undefined> {
+    const latestSample = await this.prisma.trainSnapshotSample.findFirst({
+      orderBy: { sampledAt: 'desc' },
+      select: { sampledAt: true },
+    });
+
+    return latestSample?.sampledAt;
+  }
+
+  private async getSnapshotRows(
+    sampledAt: Date,
+    options?: {
+      orderBy?: Prisma.TrainSnapshotSampleOrderByWithRelationInput[];
+    },
+  ) {
+    return this.prisma.trainSnapshotSample.findMany({
+      where: { sampledAt },
+      orderBy: options?.orderBy,
+    });
+  }
+}
+
+function buildEmptyLiveStats(): LiveStatsResponse {
+  return {
+    sampledAt: new Date(0).toISOString(),
+    totals: {
+      totalTrains: 0,
+      delayedTrains: 0,
+      delayRate: 0,
+      avgDelay: 0,
+      maxDelay: 0,
+    },
+    delayBuckets: {
+      under5m: 0,
+      under10m: 0,
+      under20m: 0,
+      over20m: 0,
+    },
+    byType: [],
+    byDirection: [],
+    byStation: [],
+    topDelayed: [],
+  };
+}
+
+function mapLiveStats(
+  sampledAt: Date,
+  rows: Array<{
+    trainId: string;
+    type: string;
+    direction: 'UP' | 'DOWN';
+    delayMinutes: number;
+    currentStationName: string | null;
+    nextStationName: string | null;
+  }>,
+): LiveStatsResponse {
+  const delayedRows = rows.filter((row) => row.delayMinutes > 0);
+  const totalDelay = rows.reduce((sum, row) => sum + row.delayMinutes, 0);
+  const byTypeMap = new Map<
+    string,
+    {
+      type: string;
+      count: number;
+      delayedCount: number;
+      totalDelay: number;
+    }
+  >();
+  const byDirectionMap = new Map<'UP' | 'DOWN', number>();
+  const byStationMap = new Map<string, number>();
+
+  for (const row of rows) {
+    const typeEntry = byTypeMap.get(row.type) ?? {
+      type: row.type,
+      count: 0,
+      delayedCount: 0,
+      totalDelay: 0,
+    };
+    typeEntry.count += 1;
+    typeEntry.totalDelay += row.delayMinutes;
+    if (row.delayMinutes > 0) {
+      typeEntry.delayedCount += 1;
+    }
+    byTypeMap.set(row.type, typeEntry);
+
+    byDirectionMap.set(
+      row.direction,
+      (byDirectionMap.get(row.direction) ?? 0) + 1,
+    );
+
+    if (row.currentStationName) {
+      byStationMap.set(
+        row.currentStationName,
+        (byStationMap.get(row.currentStationName) ?? 0) + 1,
+      );
+    }
+  }
+
+  return {
+    sampledAt: sampledAt.toISOString(),
+    totals: {
+      totalTrains: rows.length,
+      delayedTrains: delayedRows.length,
+      delayRate:
+        rows.length === 0 ? 0 : round((delayedRows.length / rows.length) * 100),
+      avgDelay: rows.length === 0 ? 0 : round(totalDelay / rows.length),
+      maxDelay: rows.reduce(
+        (maxDelay, row) => Math.max(maxDelay, row.delayMinutes),
+        0,
+      ),
+    },
+    delayBuckets: {
+      under5m: rows.filter(
+        (row) => row.delayMinutes > 0 && row.delayMinutes < 5,
+      ).length,
+      under10m: rows.filter(
+        (row) => row.delayMinutes >= 5 && row.delayMinutes < 10,
+      ).length,
+      under20m: rows.filter(
+        (row) => row.delayMinutes >= 10 && row.delayMinutes < 20,
+      ).length,
+      over20m: rows.filter((row) => row.delayMinutes >= 20).length,
+    },
+    byType: Array.from(byTypeMap.values())
+      .map((entry) => ({
+        type: entry.type,
+        count: entry.count,
+        delayedCount: entry.delayedCount,
+        delayRate: round((entry.delayedCount / entry.count) * 100),
+        avgDelay: round(entry.totalDelay / entry.count),
+      }))
+      .sort((left, right) => right.count - left.count),
+    byDirection: Array.from(byDirectionMap.entries()).map(
+      ([direction, count]) => ({
+        direction,
+        count,
+      }),
+    ),
+    byStation: Array.from(byStationMap.entries())
+      .map(([stationName, count]) => ({
+        stationName,
+        count,
+      }))
+      .sort((left, right) => right.count - left.count)
+      .slice(0, 10),
+    topDelayed: delayedRows.slice(0, 10).map((row) => ({
+      trainId: row.trainId,
+      type: row.type,
+      delay: row.delayMinutes,
+      currentStationName: row.currentStationName ?? undefined,
+      nextStationName: row.nextStationName ?? undefined,
+    })),
+  };
+}
+
+function mapHourlyTrendRow(row: {
+  bucketStart: Date;
+  activeTrainCount: number;
+  delayedTrainCount: number;
+  avgDelay: number;
+  maxDelay: number;
+  createdCount: number;
+  removedCount: number;
+}): TrendPoint {
+  return {
+    bucketStart: row.bucketStart.toISOString(),
+    activeTrainCount: row.activeTrainCount,
+    delayedTrainCount: row.delayedTrainCount,
+    delayRate:
+      row.activeTrainCount === 0
+        ? 0
+        : round((row.delayedTrainCount / row.activeTrainCount) * 100),
+    avgDelay: row.avgDelay,
+    maxDelay: row.maxDelay,
+    createdCount: row.createdCount,
+    removedCount: row.removedCount,
+  };
+}
+
+function mapRawTrendRow(row: TrendRow): TrendPoint {
+  return {
+    bucketStart: row.bucketStart.toISOString(),
+    activeTrainCount: Number(row.activeTrainCount),
+    delayedTrainCount: Number(row.delayedTrainCount),
+    delayRate: Number(row.delayRate),
+    avgDelay: Number(row.avgDelay),
+    maxDelay: Number(row.maxDelay),
+    createdCount: Number(row.createdCount),
+    removedCount: Number(row.removedCount),
+  };
 }
 
 function parseDateParam(value: string, label: string) {

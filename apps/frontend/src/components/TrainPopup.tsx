@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, Clock } from "lucide-react";
 import { getTrainSchedule } from "../lib/api";
-import { formatDateTime, formatTrainSpeed } from "../lib/format";
+import { formatDateTime } from "../lib/format";
 import type { DashboardData, TrainScheduleItem } from "../types/dashboard";
 import { cn } from "@/lib/utils";
 
@@ -90,11 +90,6 @@ export function TrainPopup(props: {
                   : undefined
               }
             />
-            <InfoItem
-              label="현재 속도"
-              className="col-span-2"
-              value={formatTrainSpeed(train.speedKph) ?? "-"}
-            />
           </div>
         </div>
 
@@ -175,7 +170,7 @@ function ScheduleTab(props: {
               })}
             >
               <div className="flex items-center justify-between gap-3">
-                <div className="font-semibold text-slate-900">
+                <div className="font-semibold text-slate-900 text-sm">
                   {item.station.name}
                 </div>
                 <div

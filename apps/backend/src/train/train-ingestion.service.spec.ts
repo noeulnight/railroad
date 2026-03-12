@@ -1,75 +1,49 @@
-import { TrainEventType } from '@prisma/client';
 import { Direction } from 'src/korail/interface/train.interface';
-import { KorailService } from 'src/korail/korail.service';
-import { PrismaService } from 'src/prisma/prisma.service';
 import type { Train } from './interface/train.interface';
+import { TrainEventPersistenceService } from './ingestion/train-event-persistence.service';
+import { TrainSnapshotPersistenceService } from './ingestion/train-snapshot-persistence.service';
+import { TrainStationSyncService } from './ingestion/train-station-sync.service';
+import { TrainStatsRollupService } from './ingestion/train-stats-rollup.service';
 import { TrainIngestionService } from './train-ingestion.service';
 import type { TrainDelta } from './utils/diff-trains.util';
 
 describe('TrainIngestionService', () => {
-  let prismaService: {
-    trainSnapshotSample: { createMany: jest.Mock };
-    trainEvent: { create: jest.Mock; count: jest.Mock };
-    trainStatsHourly: { upsert: jest.Mock };
-    station: { upsert: jest.Mock };
-    $transaction: jest.Mock;
-  };
-  let korailService: jest.Mocked<Pick<KorailService, 'getStations'>>;
+  let stationSyncService: jest.Mocked<
+    Pick<TrainStationSyncService, 'syncIfNeeded'>
+  >;
+  let snapshotPersistenceService: jest.Mocked<
+    Pick<TrainSnapshotPersistenceService, 'recordSnapshot'>
+  >;
+  let eventPersistenceService: jest.Mocked<
+    Pick<TrainEventPersistenceService, 'recordDelta'>
+  >;
+  let statsRollupService: jest.Mocked<
+    Pick<TrainStatsRollupService, 'refreshHourlyRollup'>
+  >;
   let service: TrainIngestionService;
 
   beforeEach(() => {
-    prismaService = {
-      trainSnapshotSample: {
-        createMany: jest.fn().mockResolvedValue({ count: 1 }),
-      },
-      trainEvent: {
-        create: jest.fn().mockResolvedValue(undefined),
-        count: jest.fn().mockResolvedValue(0),
-      },
-      trainStatsHourly: {
-        upsert: jest.fn().mockResolvedValue(undefined),
-      },
-      station: {
-        upsert: jest.fn().mockResolvedValue(undefined),
-      },
-      $transaction: jest
-        .fn()
-        .mockImplementation(async (operations: unknown[]) => {
-          await Promise.all(operations);
-        }),
+    stationSyncService = {
+      syncIfNeeded: jest.fn().mockResolvedValue(undefined),
     };
-    korailService = {
-      getStations: jest.fn().mockResolvedValue([
-        {
-          name: '서울',
-          grade: 1,
-          geometry: { latitude: 37.55, longitude: 126.97 },
-        },
-      ]),
+    snapshotPersistenceService = {
+      recordSnapshot: jest.fn().mockResolvedValue(undefined),
+    };
+    eventPersistenceService = {
+      recordDelta: jest.fn().mockResolvedValue(undefined),
+    };
+    statsRollupService = {
+      refreshHourlyRollup: jest.fn().mockResolvedValue(undefined),
     };
     service = new TrainIngestionService(
-      prismaService as unknown as PrismaService,
-      korailService as unknown as KorailService,
+      stationSyncService as unknown as TrainStationSyncService,
+      snapshotPersistenceService as unknown as TrainSnapshotPersistenceService,
+      eventPersistenceService as unknown as TrainEventPersistenceService,
+      statsRollupService as unknown as TrainStatsRollupService,
     );
   });
 
-  it('persists snapshot rows with normalized train fields', async () => {
-    await service.recordSnapshot([createTrain()], '2026-03-09T10:00:00.000Z');
-
-    expect(prismaService.trainSnapshotSample.createMany).toHaveBeenCalledWith({
-      data: [
-        expect.objectContaining({
-          trainId: '1',
-          type: 'ktx',
-          direction: 'UP',
-          currentStationName: '대전',
-          nextStationName: '동대구',
-        }),
-      ],
-    });
-  });
-
-  it('persists updated delta rows including previous geometry', async () => {
+  it('ingests a poll result in the expected order', async () => {
     const delta: TrainDelta = {
       type: 'updated',
       data: {
@@ -89,44 +63,50 @@ describe('TrainIngestionService', () => {
       },
     };
 
-    await service.recordDelta(delta);
-
-    expect(prismaService.trainEvent.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        eventType: TrainEventType.UPDATED,
-        trainId: '1',
-        previousLatitude: 36.0,
-        previousLongitude: 128.0,
-      }) as Record<string, unknown>,
+    await service.ingestPollResult({
+      batch: {
+        trains: [createTrain()],
+        polledAt: '2026-03-09T10:00:10.000Z',
+      },
+      snapshot: new Map([['1', createTrain()]]),
+      deltas: [delta],
+      hasPreviousSnapshot: true,
     });
+
+    expect(
+      stationSyncService.syncIfNeeded.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      snapshotPersistenceService.recordSnapshot.mock.invocationCallOrder[0],
+    );
+    expect(snapshotPersistenceService.recordSnapshot).toHaveBeenCalledWith(
+      [createTrain()],
+      '2026-03-09T10:00:10.000Z',
+    );
+    expect(eventPersistenceService.recordDelta).toHaveBeenCalledWith(delta);
+    expect(statsRollupService.refreshHourlyRollup).toHaveBeenCalledWith(
+      [createTrain()],
+      '2026-03-09T10:00:10.000Z',
+    );
   });
 
-  it('upserts hourly rollups from the latest snapshot and event counts', async () => {
-    prismaService.trainEvent.count
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(1);
-
+  it('keeps helper methods delegating to the split services', async () => {
+    await service.recordSnapshot([createTrain()], '2026-03-09T10:00:00.000Z');
+    await service.recordDelta({
+      type: 'removed',
+      data: {
+        id: '1',
+        polledAt: '2026-03-09T10:01:00.000Z',
+      },
+    });
     await service.refreshHourlyRollup(
-      [createTrain(), createTrain({ id: '2', delay: 12 })],
+      [createTrain({ id: '2', delay: 12 })],
       '2026-03-09T10:15:00.000Z',
     );
 
-    expect(prismaService.trainStatsHourly.upsert).toHaveBeenCalledWith({
-      where: {
-        bucketStart: new Date('2026-03-09T10:00:00.000Z'),
-      },
-      create: expect.objectContaining({
-        activeTrainCount: 2,
-        delayedTrainCount: 1,
-        avgDelay: 6,
-        maxDelay: 12,
-        createdCount: 3,
-        removedCount: 1,
-      }) as Record<string, unknown>,
-      update: expect.objectContaining({
-        activeTrainCount: 2,
-      }) as Record<string, unknown>,
-    });
+    expect(stationSyncService.syncIfNeeded).toHaveBeenCalled();
+    expect(snapshotPersistenceService.recordSnapshot).toHaveBeenCalled();
+    expect(eventPersistenceService.recordDelta).toHaveBeenCalled();
+    expect(statsRollupService.refreshHourlyRollup).toHaveBeenCalled();
   });
 });
 

@@ -28,7 +28,6 @@ export type Train = {
     name?: string;
   };
   delay: number;
-  speedKph?: number;
 };
 
 export type TrainScheduleItem = {

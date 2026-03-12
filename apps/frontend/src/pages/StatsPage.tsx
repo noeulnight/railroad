@@ -98,7 +98,7 @@ export function StatsPage(props: { data: DashboardData }) {
   return (
     <div className="min-h-screen px-3 pb-10 pt-24 text-slate-950 sm:px-4">
       <div className="mx-auto max-w-6xl">
-        <h1 className="mt-8 mb-3 text-2xl font-bold sm:text-3xl">운행 통계</h1>
+        <h1 className="my-8 text-2xl font-bold sm:text-3xl">운행 통계</h1>
         <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
           <StatItem
             label="운행 중 열차"

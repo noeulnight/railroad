@@ -8,25 +8,63 @@ import {
 import "leaflet/dist/leaflet.css";
 import { MapZoomTracker } from "../components/MapZoomTracker";
 import { TrainPopup } from "../components/TrainPopup";
-import { formatTrainSpeed, getTrainColor } from "../lib/format";
-import type { DashboardData } from "../types/dashboard";
+import { getTrainColor } from "../lib/format";
+import type { DashboardData, Train } from "../types/dashboard";
 import L from "leaflet";
-import { useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { X } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
 
 const INITIAL_POSITION: [number, number] = [36.17, 127.83];
 const MAP_BOUNDS = L.latLngBounds([32.5, 123.5], [39.0, 132.0]);
+const TRAIN_MARKER_EASING_DURATION_MS = 1400;
 
 export function LiveMapPage(props: { data: DashboardData }) {
   const { data } = props;
+  const [searchParams] = useSearchParams();
   const [selectedTrainId, setSelectedTrainId] = useState<string>();
-  const selectedTrain = data.trains.find((train) => train.id === selectedTrainId);
+  const zoomTargetType = searchParams.get("type");
+  const zoomTargetId = searchParams.get("id");
+  const attemptedZoomTargetRef = useRef<string | undefined>(undefined);
+  const selectedTrain = data.trains.find(
+    (train) => train.id === selectedTrainId,
+  );
   const selectedTrainPosition = selectedTrain
-    ? ([
-        selectedTrain.geometry.latitude,
-        selectedTrain.geometry.longitude,
-      ] as [number, number])
+    ? ([selectedTrain.geometry.latitude, selectedTrain.geometry.longitude] as [
+        number,
+        number,
+      ])
     : undefined;
+
+  useEffect(() => {
+    const requestedType = normalizeTrainQueryParam(zoomTargetType);
+    const requestedId = zoomTargetId?.trim();
+
+    if (!requestedType || !requestedId) {
+      attemptedZoomTargetRef.current = undefined;
+      return;
+    }
+
+    const zoomTargetKey = `${requestedType}:${requestedId}`;
+
+    if (attemptedZoomTargetRef.current === zoomTargetKey) {
+      return;
+    }
+
+    const matchingTrain = data.trains.find(
+      (train) =>
+        train.id === requestedId &&
+        normalizeTrainQueryParam(train.type) === requestedType,
+    );
+
+    if (!matchingTrain) {
+      return;
+    }
+
+    attemptedZoomTargetRef.current = zoomTargetKey;
+    setSelectedTrainId(matchingTrain.id);
+  }, [data.trains, zoomTargetId, zoomTargetType]);
 
   return (
     <div className="relative h-screen w-full overflow-hidden">
@@ -42,7 +80,7 @@ export function LiveMapPage(props: { data: DashboardData }) {
               type="button"
             >
               <X className="size-4 mr-2" />
-              닫기 
+              닫기
             </button>
             <div className="leaflet-popup-content-wrapper h-full w-full overflow-hidden">
               <div className="leaflet-popup-content h-full">
@@ -59,69 +97,194 @@ export function LiveMapPage(props: { data: DashboardData }) {
 
       <MapContainer
         center={INITIAL_POSITION}
-        zoom={8}
+        zoom={data.zoomLevel}
         zoomSnap={0.5}
         maxBounds={MAP_BOUNDS}
         maxBoundsViscosity={1}
         zoomControl={false}
         className="h-screen w-screen"
       >
-        <MapZoomTracker
+        <StaticMapLayers
           onZoomChange={data.setZoomLevel}
           followPosition={selectedTrainPosition}
           focusKey={selectedTrain?.id}
-          focusZoom={
-            selectedTrain ? Math.max(data.zoomLevel, 15) : undefined
-          }
+          focusZoom={selectedTrain ? Math.max(data.zoomLevel, 15) : undefined}
+          visibleStations={data.visibleStations}
         />
-
-        <TileLayer
-          url="https://tiles.osm.kr/hot/{z}/{x}/{y}.png"
-          maxZoom={20}
-          minZoom={8}
+        <TrainMarkersLayer
+          trains={data.trains}
+          zoomLevel={data.zoomLevel}
+          setSelectedTrainId={setSelectedTrainId}
         />
-
-        {data.trains.map((train) => (
-          <Marker
-            key={train.id}
-            position={[train.geometry.latitude, train.geometry.longitude]}
-            icon={createTrainIcon(train, data.zoomLevel)}
-            eventHandlers={{
-              click: () => {
-                setSelectedTrainId((current) =>
-                  current === train.id ? undefined : train.id,
-                );
-              },
-            }}
-          />
-        ))}
-
-        {data.visibleStations.map((station) => (
-          <CircleMarker
-            key={station.name}
-            center={[station.geometry!.latitude, station.geometry!.longitude]}
-            radius={3}
-            pathOptions={{
-              color: "#0f172a",
-              weight: 1,
-              fillColor: "#f8fafc",
-              fillOpacity: 0.9,
-            }}
-          >
-            <Popup>
-              <div className="min-w-36">
-                <div className="mb-1 font-bold">{station.name}</div>
-              </div>
-            </Popup>
-          </CircleMarker>
-        ))}
       </MapContainer>
     </div>
   );
 }
 
+const StaticMapLayers = memo(function StaticMapLayers(props: {
+  onZoomChange: (zoom: number) => void;
+  followPosition?: [number, number];
+  focusKey?: string;
+  focusZoom?: number;
+  visibleStations: DashboardData["visibleStations"];
+}) {
+  const { onZoomChange, followPosition, focusKey, focusZoom, visibleStations } =
+    props;
+
+  return (
+    <>
+      <MapZoomTracker
+        onZoomChange={onZoomChange}
+        followPosition={followPosition}
+        focusKey={focusKey}
+        focusZoom={focusZoom}
+      />
+
+      <TileLayer
+        url="https://tiles.osm.kr/hot/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="https://openstreetmap.org/copyright">OpenStreetMap 기여자</a>'
+        maxZoom={20}
+        minZoom={8}
+      />
+
+      <TileLayer
+        url="https://tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png"
+        attribution='&copy; <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA 2.0</a> <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> and <a href="https://osm.org/copyright"</a>OpenStreetMap</a>'
+        maxZoom={20}
+        minZoom={8}
+      />
+
+      {visibleStations.map((station) => (
+        <CircleMarker
+          key={station.name}
+          center={[station.geometry!.latitude, station.geometry!.longitude]}
+          radius={3}
+          pathOptions={{
+            color: "#0f172a",
+            weight: 1,
+            fillColor: "#f8fafc",
+            fillOpacity: 0.9,
+          }}
+        >
+          <Popup>
+            <div className="min-w-36">
+              <div className="mb-1 font-bold">{station.name}</div>
+            </div>
+          </Popup>
+        </CircleMarker>
+      ))}
+    </>
+  );
+});
+
+const TrainMarkersLayer = memo(function TrainMarkersLayer(props: {
+  trains: DashboardData["trains"];
+  zoomLevel: number;
+  setSelectedTrainId: Dispatch<SetStateAction<string | undefined>>;
+}) {
+  const { trains, zoomLevel, setSelectedTrainId } = props;
+
+  return (
+    <>
+      {trains.map((train) => (
+        <AnimatedTrainMarker
+          key={train.id}
+          train={train}
+          zoomLevel={zoomLevel}
+          setSelectedTrainId={setSelectedTrainId}
+        />
+      ))}
+    </>
+  );
+});
+
+const AnimatedTrainMarker = memo(function AnimatedTrainMarker(props: {
+  train: Train;
+  zoomLevel: number;
+  setSelectedTrainId: Dispatch<SetStateAction<string | undefined>>;
+}) {
+  const { train, zoomLevel, setSelectedTrainId } = props;
+  const targetLatitude = train.geometry.latitude;
+  const targetLongitude = train.geometry.longitude;
+  const targetPosition = [targetLatitude, targetLongitude] as [number, number];
+  const markerRef = useRef<L.Marker>(null);
+  const animationFrameRef = useRef<number | undefined>(undefined);
+  const [position, setPosition] = useState(targetPosition);
+
+  useEffect(() => {
+    const marker = markerRef.current;
+
+    if (!marker) {
+      return;
+    }
+
+    const startPosition = marker.getLatLng();
+
+    if (
+      startPosition.lat === targetLatitude &&
+      startPosition.lng === targetLongitude
+    ) {
+      return;
+    }
+
+    const animationStartedAt = performance.now();
+
+    const animate = (frameTime: number) => {
+      const progress = Math.min(
+        (frameTime - animationStartedAt) / TRAIN_MARKER_EASING_DURATION_MS,
+        1,
+      );
+      const easedProgress = easeOutCubic(progress);
+      const nextPosition = [
+        startPosition.lat +
+          (targetLatitude - startPosition.lat) * easedProgress,
+        startPosition.lng +
+          (targetLongitude - startPosition.lng) * easedProgress,
+      ] as [number, number];
+
+      marker.setLatLng(nextPosition);
+      setPosition(nextPosition);
+
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current !== undefined) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [targetLatitude, targetLongitude]);
+
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current !== undefined) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={position}
+      icon={createTrainIcon(train, zoomLevel)}
+      eventHandlers={{
+        click: () => {
+          setSelectedTrainId((current) =>
+            current === train.id ? undefined : train.id,
+          );
+        },
+      }}
+    />
+  );
+}, areTrainMarkerPropsEqual);
+
 function getTrainPrimaryColor(type: string) {
-  const normalized = type.toLowerCase().replaceAll(" ", "").replaceAll("-", "");
+  const normalized = normalizeTrainQueryParam(type);
 
   switch (normalized) {
     case "srt":
@@ -145,13 +308,16 @@ function getTrainPrimaryColor(type: string) {
   }
 }
 
+function normalizeTrainQueryParam(value?: string | null) {
+  return value?.trim().toLowerCase().replaceAll(/\s+/g, "").replaceAll("-", "");
+}
+
 function createTrainIcon(
   train: DashboardData["trains"][number],
   zoomLevel: number,
 ) {
   const primaryColor = getTrainPrimaryColor(train.type);
   const directionColor = getTrainColor(train.direction);
-  const speedLabel = formatTrainSpeed(train.speedKph);
   const bearingScale = Number.isFinite(train.geometry.bearing)
     ? train.geometry.bearing
     : 0;
@@ -164,20 +330,20 @@ function createTrainIcon(
     html: `
       <div style="display:flex;align-items:center;gap:6px;">
         <div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:9999px;background:${primaryColor};box-shadow:0 4px 12px rgba(15,23,42,0.18);overflow:hidden;flex:none;">
-          <div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;font-size:11px;line-height:1;font-weight:800;transform:rotate(${bearing}deg);transform-origin:center center;color:${directionColor === "#dc2626" ? "#fee2e2" : "#dbeafe"};">&gt;</div>
+          <div style="display:flex;align-items:center;justify-content:center;width:24px;height:24px;transform:rotate(${bearing}deg);transform-origin:center center;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" shape-rendering="geometricPrecision">
+              <path d="m9 18 6-6-6-6" stroke="${directionColor === "#dc2626" ? "#fee2e2" : "#dbeafe"}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+            </svg>
+          </div>
         </div>
         ${
           showLabel
-            ? `<div style="display:flex;align-items:center;gap:6px;padding:${speedLabel ? '2px 2px 2px 8px' : '2px 8px'};border-radius:9999px;background:${primaryColor};color:#ffffff;font-size:11px;line-height:1.2;font-weight:700;white-space:nowrap;box-shadow:0 4px 12px rgba(15,23,42,0.12);"><span>${trainLabel}</span>${
-                speedLabel
-                  ? `<span style="padding:1px 6px;border-radius:9999px;background:rgba(255,255,255,0.18);font-size:10px;font-weight:700;">${escapeHtml(speedLabel)}</span>`
-                  : ""
-              }</div>`
+            ? `<div style="display:flex;align-items:center;gap:6px;padding:2px 8px;border-radius:9999px;background:${primaryColor};color:#ffffff;font-size:11px;line-height:1.2;font-weight:700;white-space:nowrap;box-shadow:0 4px 12px rgba(15,23,42,0.12);"><span>${trainLabel}</span></div>`
             : ""
         }
       </div>
     `,
-    iconSize: showLabel ? [speedLabel ? 168 : 96, 24] : [24, 24],
+    iconSize: showLabel ? [96, 24] : [24, 24],
     iconAnchor: [12, 12],
     popupAnchor: [0, -12],
   });
@@ -190,4 +356,32 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function easeOutCubic(progress: number) {
+  return 1 - (1 - progress) ** 3;
+}
+
+function areTrainMarkerPropsEqual(
+  previous: Readonly<{
+    train: Train;
+    zoomLevel: number;
+    setSelectedTrainId: Dispatch<SetStateAction<string | undefined>>;
+  }>,
+  next: Readonly<{
+    train: Train;
+    zoomLevel: number;
+    setSelectedTrainId: Dispatch<SetStateAction<string | undefined>>;
+  }>,
+) {
+  return (
+    previous.zoomLevel === next.zoomLevel &&
+    previous.setSelectedTrainId === next.setSelectedTrainId &&
+    previous.train.id === next.train.id &&
+    previous.train.type === next.train.type &&
+    previous.train.direction === next.train.direction &&
+    previous.train.geometry.latitude === next.train.geometry.latitude &&
+    previous.train.geometry.longitude === next.train.geometry.longitude &&
+    previous.train.geometry.bearing === next.train.geometry.bearing
+  );
 }

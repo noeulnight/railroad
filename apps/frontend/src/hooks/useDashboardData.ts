@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getStations, getTrainEventsUrl } from "../lib/api";
 import { shouldShowStation } from "../lib/format";
 import type {
@@ -137,9 +137,10 @@ export function useDashboardData(): DashboardData {
     };
   }, []);
 
-  const trainList = Object.values(trains);
-  const visibleStations = stations.filter((station) =>
-    shouldShowStation(zoomLevel, station.grade),
+  const trainList = useMemo(() => Object.values(trains), [trains]);
+  const visibleStations = useMemo(
+    () => stations.filter((station) => shouldShowStation(zoomLevel, station.grade)),
+    [stations, zoomLevel],
   );
 
   return {

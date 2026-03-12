@@ -23,7 +23,6 @@ export interface Train {
   currentStation?: Station;
   nextStation?: Station;
   delay: number;
-  speedKph?: number;
 }
 
 export interface TrainListResponse {
