@@ -1,6 +1,5 @@
 import "../components/stats/chartSetup";
 import { Bar, Line } from "react-chartjs-2";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -17,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useStatsDashboardData } from "../hooks/useStatsDashboardData";
-import { formatChartLabel, formatDateTime } from "../lib/format";
+import { formatChartLabel } from "../lib/format";
 import type { DashboardData } from "../types/dashboard";
 import { buildChartOptions } from "../components/stats/chartSetup";
 
@@ -97,50 +96,35 @@ export function StatsPage(props: { data: DashboardData }) {
   };
 
   return (
-    <div className="min-h-screen px-4 pb-10 pt-24 text-slate-950">
+    <div className="min-h-screen px-3 pb-10 pt-24 text-slate-950 sm:px-4">
       <div className="mx-auto max-w-6xl">
-        <Card className="mt-8">
-          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <CardTitle className="text-3xl">운행 통계</CardTitle>
-            </div>
-            <div className="flex items-center gap-3">
-              <Badge variant="secondary">
-                {data.connectionState === "live" ? "LIVE" : "SYNC"}
-              </Badge>
-              <p className="text-muted-foreground text-sm">
-                통계 기준{" "}
-                {formatDateTime(liveStats?.sampledAt ?? data.lastPolledAt)}
-              </p>
-            </div>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <StatItem
-              label="운행 중 열차"
-              value={`${liveStats?.totals.totalTrains ?? 0}대`}
-            />
-            <StatItem
-              label="지연 열차"
-              value={`${liveStats?.totals.delayedTrains ?? 0}대`}
-            />
-            <StatItem
-              label="지연률"
-              value={`${liveStats?.totals.delayRate ?? 0}%`}
-            />
-            <StatItem
-              label="최대 지연"
-              value={`${liveStats?.totals.maxDelay ?? 0}분`}
-            />
-          </CardContent>
-        </Card>
+        <h1 className="mt-8 mb-3 text-2xl font-bold sm:text-3xl">운행 통계</h1>
+        <div className="grid gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
+          <StatItem
+            label="운행 중 열차"
+            value={`${liveStats?.totals.totalTrains ?? 0}대`}
+          />
+          <StatItem
+            label="지연 열차"
+            value={`${liveStats?.totals.delayedTrains ?? 0}대`}
+          />
+          <StatItem
+            label="지연률"
+            value={`${liveStats?.totals.delayRate ?? 0}%`}
+          />
+          <StatItem
+            label="최대 지연"
+            value={`${liveStats?.totals.maxDelay ?? 0}분`}
+          />
+        </div>
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <Card>
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle>최근 24시간 운행 추이</CardTitle>
               <CardDescription>운행 수와 지연률 추이</CardDescription>
             </CardHeader>
-            <CardContent className="h-80">
+            <CardContent className="h-80 min-w-0">
               <Line
                 data={trendChartData}
                 options={buildChartOptions({
@@ -151,16 +135,16 @@ export function StatsPage(props: { data: DashboardData }) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="min-w-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0">
               <CardTitle>지연 상위 열차</CardTitle>
               <CardDescription>
                 {liveStats?.topDelayed.length ?? 0}건
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="min-w-0 space-y-3">
               {liveStats?.topDelayed.length ? (
-                <Table>
+                <Table className="min-w-[280px]">
                   <TableHeader>
                     <TableRow>
                       <TableHead>열차</TableHead>
@@ -188,11 +172,11 @@ export function StatsPage(props: { data: DashboardData }) {
         </section>
 
         <section className="mt-6 grid gap-6 xl:grid-cols-2">
-          <Card>
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle>열차 유형별 운행 수 / 지연률</CardTitle>
             </CardHeader>
-            <CardContent className="h-80">
+            <CardContent className="h-80 min-w-0">
               <Bar
                 data={typeChartData}
                 options={buildChartOptions({
@@ -203,12 +187,12 @@ export function StatsPage(props: { data: DashboardData }) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle>역별 활성도 / 지연 열차</CardTitle>
               <CardDescription>상위 8개 역</CardDescription>
             </CardHeader>
-            <CardContent className="h-80">
+            <CardContent className="h-80 min-w-0">
               <Bar
                 data={stationDelayChartData}
                 options={buildChartOptions({
@@ -221,13 +205,13 @@ export function StatsPage(props: { data: DashboardData }) {
         </section>
 
         <section className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-          <Card>
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle>역별 활성 열차</CardTitle>
               <CardDescription>현재역 기준 상위 집계</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Table>
+            <CardContent className="min-w-0">
+              <Table className="min-w-[640px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>역</TableHead>
@@ -262,13 +246,13 @@ export function StatsPage(props: { data: DashboardData }) {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="min-w-0">
             <CardHeader>
               <CardTitle>활성 구간 상위</CardTitle>
               <CardDescription>현재역 → 다음역 기준</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Table>
+            <CardContent className="min-w-0">
+              <Table className="min-w-[640px]">
                 <TableHeader>
                   <TableRow>
                     <TableHead>현재역</TableHead>
@@ -330,11 +314,9 @@ export function StatsPage(props: { data: DashboardData }) {
 
 function StatItem(props: { label: string; value: string }) {
   return (
-    <Card>
-      <CardContent className="space-y-2 p-4">
-        <CardDescription>{props.label}</CardDescription>
-        <p className="text-3xl font-semibold">{props.value}</p>
-      </CardContent>
-    </Card>
+    <div className="bg-card text-card-foreground flex flex-col rounded-xl p-4 shadow-sm sm:p-6">
+      <p className="text-sm text-slate-600">{props.label}</p>
+      <p className="text-2xl font-semibold sm:text-3xl">{props.value}</p>
+    </div>
   );
 }

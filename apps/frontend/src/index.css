@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap");
 @import "tailwindcss";
 
 :root {
@@ -20,6 +21,10 @@
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
   --radius: 1rem;
+}
+
+@theme {
+  --font-space-grotesk: "Space Grotesk", sans-serif;
 }
 
 @theme inline {
@@ -50,6 +55,7 @@
 body {
   min-height: 100vh;
   color: var(--foreground);
+  background-color: #eeeeee;
 }
 
 .leaflet-popup-content-wrapper {

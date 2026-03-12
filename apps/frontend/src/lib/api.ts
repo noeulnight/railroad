@@ -8,72 +8,31 @@ import type {
   TrendPoint,
 } from "../types/dashboard";
 
-export function getApiUrl(path: string) {
-  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim();
+const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim() || undefined;
 
-  if (configuredBaseUrl) {
-    return new URL(path, configuredBaseUrl).toString();
+function buildExternalUrl(path: string) {
+  if (!configuredBaseUrl) {
+    return path;
   }
 
-  return path;
+  return new URL(path, configuredBaseUrl).toString();
 }
 
 export function getTrainEventsUrl() {
-  return getApiUrl("/api/train/events");
+  return buildExternalUrl("/api/train/events");
 }
 
-export function getStationsUrl() {
-  return getApiUrl("/api/station");
-}
-
-export function getStatsLiveUrl() {
-  return getApiUrl("/api/stats/live");
-}
-
-export function getStatsStationsUrl() {
-  return getApiUrl("/api/stats/stations");
-}
-
-export function getStatsSegmentsUrl() {
-  return getApiUrl("/api/stats/segments");
-}
-
-export function getStatsTrendsUrl() {
-  const url = new URL(getApiUrl("/api/stats/trends"), window.location.origin);
-  const now = new Date();
-  const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-
-  url.searchParams.set("bucket", "1h");
-  url.searchParams.set("from", from.toISOString());
-  url.searchParams.set("to", now.toISOString());
-
-  return import.meta.env.VITE_API_BASE_URL?.trim()
-    ? url.toString()
-    : `${url.pathname}${url.search}`;
-}
-
-export function getTrainScheduleUrl(trainId: string, date: string) {
-  const url = new URL(
-    getApiUrl(`/api/train/${encodeURIComponent(trainId)}/schedule`),
-    window.location.origin,
-  );
-
-  url.searchParams.set("date", date);
-
-  return import.meta.env.VITE_API_BASE_URL?.trim()
-    ? url.toString()
-    : `${url.pathname}${url.search}`;
-}
-
-export const apiClient = axios.create();
+export const apiClient = axios.create({
+  baseURL: configuredBaseUrl,
+});
 
 export async function getStations(signal?: AbortSignal) {
-  const response = await apiClient.get<Station[]>(getStationsUrl(), { signal });
+  const response = await apiClient.get<Station[]>("/api/station", { signal });
   return response.data;
 }
 
 export async function getStatsLive(signal?: AbortSignal) {
-  const response = await apiClient.get<LiveStatsResponse>(getStatsLiveUrl(), {
+  const response = await apiClient.get<LiveStatsResponse>("/api/stats/live", {
     signal,
   });
   return response.data;
@@ -81,7 +40,7 @@ export async function getStatsLive(signal?: AbortSignal) {
 
 export async function getStatsStations(signal?: AbortSignal) {
   const response = await apiClient.get<StationStatsResponseItem[]>(
-    getStatsStationsUrl(),
+    "/api/stats/stations",
     { signal },
   );
   return response.data;
@@ -89,15 +48,23 @@ export async function getStatsStations(signal?: AbortSignal) {
 
 export async function getStatsSegments(signal?: AbortSignal) {
   const response = await apiClient.get<SegmentStatsResponseItem[]>(
-    getStatsSegmentsUrl(),
+    "/api/stats/segments",
     { signal },
   );
   return response.data;
 }
 
 export async function getStatsTrends(signal?: AbortSignal) {
-  const response = await apiClient.get<TrendPoint[]>(getStatsTrendsUrl(), {
+  const now = new Date();
+  const from = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  const response = await apiClient.get<TrendPoint[]>("/api/stats/trends", {
     signal,
+    params: {
+      bucket: "1h",
+      from: from.toISOString(),
+      to: now.toISOString(),
+    },
   });
   return response.data;
 }
@@ -108,8 +75,11 @@ export async function getTrainSchedule(
   signal?: AbortSignal,
 ) {
   const response = await apiClient.get<TrainScheduleItem[]>(
-    getTrainScheduleUrl(trainId, date),
-    { signal },
+    `/api/train/${encodeURIComponent(trainId)}/schedule`,
+    {
+      signal,
+      params: { date },
+    },
   );
   return response.data;
 }

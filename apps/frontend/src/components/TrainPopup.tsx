@@ -1,4 +1,3 @@
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEffect, useState } from "react";
 import { ArrowRight, Clock } from "lucide-react";
 import { getTrainSchedule } from "../lib/api";
@@ -42,7 +41,7 @@ export function TrainPopup(props: {
   }, [train]);
 
   return (
-    <div className="relative min-w-72 space-y-4 p-4">
+    <div className="relative flex h-full min-w-80 flex-col space-y-4 overflow-hidden p-4">
       <img
         alt={train.type}
         className="absolute right-0 top-0 w-24 rounded-sm object-top"
@@ -61,12 +60,8 @@ export function TrainPopup(props: {
         </div>
       </div>
 
-      <Tabs defaultValue="summary">
-        <TabsList>
-          <TabsTrigger value="summary">운행 정보</TabsTrigger>
-          <TabsTrigger value="schedule">시간표</TabsTrigger>
-        </TabsList>
-        <TabsContent value="summary">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
+        <div>
           <div className="grid w-full grid-cols-2 gap-1 text-sm">
             <InfoItem
               label="현재역"
@@ -101,16 +96,20 @@ export function TrainPopup(props: {
               value={formatTrainSpeed(train.speedKph) ?? "-"}
             />
           </div>
-        </TabsContent>
-        <TabsContent value="schedule">
+        </div>
+
+        <div className="h-px w-full bg-slate-200" />
+
+        <div className="min-h-0 flex-1">
           <ScheduleTab
             items={schedule}
             loading={scheduleLoading}
             errorMessage={scheduleError}
             currentStation={train.currentStation?.name}
+            trainDelay={train.delay}
           />
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
 
       <div className="flex items-center gap-1 text-xs text-slate-500">
         <Clock className="size-3" /> 갱신: {formatDateTime(lastPolledAt)}
@@ -122,6 +121,7 @@ export function TrainPopup(props: {
 function ScheduleTab(props: {
   items: TrainScheduleItem[];
   currentStation?: string;
+  trainDelay: number;
   loading: boolean;
   errorMessage?: string;
 }) {
@@ -149,31 +149,101 @@ function ScheduleTab(props: {
     );
   }
 
+  const currentStationIndex = props.currentStation
+    ? props.items.findIndex((item) => item.station.name === props.currentStation)
+    : -1;
+
   return (
-    <div className="max-h-60 space-y-2 overflow-y-auto pr-1 scrollbar-hide">
-      {props.items.map((item) => (
+    <div className="h-full space-y-2 overflow-y-auto pr-1 scrollbar-hide max-h-80">
+      {props.items.map((item, index) => (
+        (() => {
+          const effectiveDelay = getEffectiveScheduleDelay(
+            item,
+            index,
+            currentStationIndex,
+            props.trainDelay,
+          );
+          const isDelayed = effectiveDelay > 0;
+
+          return (
         <div
           key={`${item.id}-${item.arrivalTime}`}
           className={cn("rounded-md bg-slate-50 px-3 py-2", {
-            "bg-green-200": props.currentStation === item.station.name,
+            "bg-green-100": props.currentStation === item.station.name,
           })}
         >
           <div className="flex items-center justify-between gap-3">
             <div className="font-semibold text-slate-900">
               {item.station.name}
             </div>
-            <div className="text-xs text-slate-500">
-              {item.delay > 0 ? `지연 ${item.delay}분` : "정시"}
+            <div
+              className={cn("text-xs text-slate-500", {
+                "text-red-500": isDelayed,
+              })}
+            >
+              {formatScheduleMeta(index, props.items.length, effectiveDelay)}
             </div>
           </div>
-          <div className="mt-1 flex items-center justify-between  text-sm text-slate-600">
-            <span>도착 {formatDateTime(item.arrivalTime)}</span>
+          <div
+            className={cn("mt-1 flex items-center justify-between text-sm text-slate-600")}
+          >
+            <span>{formatScheduleTime(item.arrivalTime, effectiveDelay)}</span>
             <ArrowRight className="size-3" />
-            <span>출발 {formatDateTime(item.departureTime)}</span>
+            <span>{formatScheduleTime(item.departureTime, effectiveDelay)}</span>
           </div>
         </div>
+          );
+        })()
       ))}
     </div>
+  );
+}
+
+function formatScheduleMeta(
+  index: number,
+  total: number,
+  delayMinutes: number,
+) {
+  const stationRole =
+    index === 0 ? "시발역" : index === total - 1 ? "종착역" : undefined;
+  const delayStatus = delayMinutes > 0 ? `지연 ${delayMinutes}분` : "정시";
+
+  return stationRole ? `${stationRole} · ${delayStatus}` : delayStatus;
+}
+
+function getEffectiveScheduleDelay(
+  item: TrainScheduleItem,
+  index: number,
+  currentStationIndex: number,
+  trainDelay: number,
+) {
+  if (item.delay > 0) {
+    return item.delay;
+  }
+
+  if (trainDelay <= 0 || currentStationIndex === -1) {
+    return 0;
+  }
+
+  return index >= currentStationIndex ? trainDelay : 0;
+}
+
+function formatScheduleTime(value: string, delayMinutes: number) {
+  if (!value) {
+    return "-";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  if (delayMinutes <= 0) {
+    return formatDateTime(value);
+  }
+
+  return formatDateTime(
+    new Date(date.getTime() + delayMinutes * 60 * 1000).toISOString(),
   );
 }
 
