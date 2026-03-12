@@ -150,12 +150,14 @@ function ScheduleTab(props: {
   }
 
   const currentStationIndex = props.currentStation
-    ? props.items.findIndex((item) => item.station.name === props.currentStation)
+    ? props.items.findIndex(
+        (item) => item.station.name === props.currentStation,
+      )
     : -1;
 
   return (
-    <div className="h-full space-y-2 overflow-y-auto pr-1 scrollbar-hide max-h-80">
-      {props.items.map((item, index) => (
+    <div className="h-full space-y-2 overflow-y-auto pr-1 scrollbar-hide max-h-80 md:max-h-max">
+      {props.items.map((item, index) =>
         (() => {
           const effectiveDelay = getEffectiveScheduleDelay(
             item,
@@ -166,35 +168,45 @@ function ScheduleTab(props: {
           const isDelayed = effectiveDelay > 0;
 
           return (
-        <div
-          key={`${item.id}-${item.arrivalTime}`}
-          className={cn("rounded-md bg-slate-50 px-3 py-2", {
-            "bg-green-100": props.currentStation === item.station.name,
-          })}
-        >
-          <div className="flex items-center justify-between gap-3">
-            <div className="font-semibold text-slate-900">
-              {item.station.name}
-            </div>
             <div
-              className={cn("text-xs text-slate-500", {
-                "text-red-500": isDelayed,
+              key={`${item.id}-${item.arrivalTime}`}
+              className={cn("rounded-md bg-slate-50 px-3 py-2", {
+                "bg-green-100": props.currentStation === item.station.name,
               })}
             >
-              {formatScheduleMeta(index, props.items.length, effectiveDelay)}
+              <div className="flex items-center justify-between gap-3">
+                <div className="font-semibold text-slate-900">
+                  {item.station.name}
+                </div>
+                <div
+                  className={cn("text-xs text-slate-500", {
+                    "text-red-500": isDelayed,
+                  })}
+                >
+                  {formatScheduleMeta(
+                    index,
+                    props.items.length,
+                    effectiveDelay,
+                  )}
+                </div>
+              </div>
+              <div
+                className={cn(
+                  "mt-1 flex items-center justify-between text-sm text-slate-600",
+                )}
+              >
+                <span>
+                  {formatScheduleTime(item.arrivalTime, effectiveDelay)}
+                </span>
+                <ArrowRight className="size-3" />
+                <span>
+                  {formatScheduleTime(item.departureTime, effectiveDelay)}
+                </span>
+              </div>
             </div>
-          </div>
-          <div
-            className={cn("mt-1 flex items-center justify-between text-sm text-slate-600")}
-          >
-            <span>{formatScheduleTime(item.arrivalTime, effectiveDelay)}</span>
-            <ArrowRight className="size-3" />
-            <span>{formatScheduleTime(item.departureTime, effectiveDelay)}</span>
-          </div>
-        </div>
           );
-        })()
-      ))}
+        })(),
+      )}
     </div>
   );
 }

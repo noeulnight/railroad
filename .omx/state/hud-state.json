@@ -1,0 +1,5 @@
+{
+  "last_turn_at": "2026-03-12T03:04:35.196Z",
+  "turn_count": 2,
+  "last_agent_output": "GitHub Actions의 Docker 빌드를 서비스별로 분리했습니다. 기존 통합 워크플로우는 제거하고, 백엔드와 프론트엔드가 각각 독립적으로 빌드/푸시되도록 나눴습니다.\n\n변경"
+}
