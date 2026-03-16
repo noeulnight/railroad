@@ -1,6 +1,7 @@
 {
   "name": "railroad",
   "private": true,
+  "license": "MIT",
   "packageManager": "pnpm@10.27.0",
   "workspaces": [
     "apps/*",
