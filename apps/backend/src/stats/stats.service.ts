@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { TrainStreamBroadcasterService } from 'src/train/runtime/train-stream-broadcaster.service';
+import type { Train } from 'src/train/interface/train.interface';
 import type {
   LiveStatsResponse,
   SegmentStatsResponseItem,
@@ -24,20 +26,27 @@ type TrendRow = {
 
 @Injectable()
 export class StatsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly broadcaster: TrainStreamBroadcasterService,
+  ) {}
 
   public async getLiveStats(): Promise<LiveStatsResponse> {
-    const latestSampledAt = await this.getLatestSampledAt();
+    const snapshot = this.broadcaster.getSnapshot();
 
-    if (!latestSampledAt) {
+    if (!snapshot) {
       return buildEmptyLiveStats();
     }
 
-    const rows = await this.getSnapshotRows(latestSampledAt, {
-      orderBy: [{ delayMinutes: 'desc' }, { trainId: 'asc' }],
+    const rows = mapSnapshotRows(snapshot.trains).sort((left, right) => {
+      if (right.delayMinutes !== left.delayMinutes) {
+        return right.delayMinutes - left.delayMinutes;
+      }
+
+      return left.trainId.localeCompare(right.trainId);
     });
 
-    return mapLiveStats(latestSampledAt, rows);
+    return mapLiveStats(new Date(snapshot.polledAt), rows);
   }
 
   public async getTrendStats(
@@ -72,14 +81,14 @@ export class StatsService {
   }
 
   public async getStationStats(): Promise<StationStatsResponseItem[]> {
-    const latestSampledAt = await this.getLatestSampledAt();
+    const snapshot = this.broadcaster.getSnapshot();
 
-    if (!latestSampledAt) {
+    if (!snapshot) {
       return [];
     }
 
     const [samples, stations] = await Promise.all([
-      this.getSnapshotRows(latestSampledAt),
+      Promise.resolve(mapSnapshotRows(snapshot.trains)),
       this.prisma.station.findMany(),
     ]);
 
@@ -132,13 +141,13 @@ export class StatsService {
   }
 
   public async getSegmentStats(): Promise<SegmentStatsResponseItem[]> {
-    const latestSampledAt = await this.getLatestSampledAt();
+    const snapshot = this.broadcaster.getSnapshot();
 
-    if (!latestSampledAt) {
+    if (!snapshot) {
       return [];
     }
 
-    const samples = await this.getSnapshotRows(latestSampledAt);
+    const samples = mapSnapshotRows(snapshot.trains);
 
     const segments = new Map<
       string,
@@ -187,33 +196,19 @@ export class StatsService {
   }
 
   public async getTrainHistory(trainId: string): Promise<TrainHistoryResponse> {
-    const [samples, events] = await Promise.all([
-      this.prisma.trainSnapshotSample.findMany({
-        where: { trainId },
-        orderBy: { sampledAt: 'desc' },
-        take: 200,
-      }),
-      this.prisma.trainEvent.findMany({
-        where: { trainId },
-        orderBy: { occurredAt: 'desc' },
-        take: 200,
-      }),
-    ]);
+    const events = await this.prisma.trainEvent.findMany({
+      where: { trainId },
+      orderBy: { occurredAt: 'desc' },
+      take: 200,
+    });
 
-    if (samples.length === 0 && events.length === 0) {
+    if (events.length === 0) {
       throw new NotFoundException(`No history found for train ${trainId}`);
     }
 
     return {
       trainId,
-      samples: samples.map((sample) => ({
-        sampledAt: sample.sampledAt.toISOString(),
-        delayMinutes: sample.delayMinutes,
-        latitude: sample.latitude,
-        longitude: sample.longitude,
-        currentStationName: sample.currentStationName ?? undefined,
-        nextStationName: sample.nextStationName ?? undefined,
-      })),
+      samples: [],
       events: events.map((event) => ({
         occurredAt: event.occurredAt.toISOString(),
         eventType: event.eventType,
@@ -224,27 +219,6 @@ export class StatsService {
         nextStationName: event.nextStationName ?? undefined,
       })),
     };
-  }
-
-  private async getLatestSampledAt(): Promise<Date | undefined> {
-    const latestSample = await this.prisma.trainSnapshotSample.findFirst({
-      orderBy: { sampledAt: 'desc' },
-      select: { sampledAt: true },
-    });
-
-    return latestSample?.sampledAt;
-  }
-
-  private async getSnapshotRows(
-    sampledAt: Date,
-    options?: {
-      orderBy?: Prisma.TrainSnapshotSampleOrderByWithRelationInput[];
-    },
-  ) {
-    return this.prisma.trainSnapshotSample.findMany({
-      where: { sampledAt },
-      orderBy: options?.orderBy,
-    });
   }
 }
 
@@ -492,4 +466,15 @@ function buildTrendQuery(start: Date, end: Date, bucket: Bucket) {
       ON snapshot_rollup."bucketStart" = event_rollup."bucketStart"
     ORDER BY "bucketStart" ASC
   `;
+}
+
+function mapSnapshotRows(trains: Train[]) {
+  return trains.map((train) => ({
+    trainId: train.id,
+    type: train.type,
+    direction: train.direction,
+    delayMinutes: train.delay,
+    currentStationName: train.currentStation?.name ?? null,
+    nextStationName: train.nextStation?.name ?? null,
+  }));
 }

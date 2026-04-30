@@ -1,7 +1,6 @@
 import { Direction } from 'src/korail/interface/train.interface';
 import type { Train } from './interface/train.interface';
 import { TrainEventPersistenceService } from './ingestion/train-event-persistence.service';
-import { TrainSnapshotPersistenceService } from './ingestion/train-snapshot-persistence.service';
 import { TrainStationSyncService } from './ingestion/train-station-sync.service';
 import { TrainStatsRollupService } from './ingestion/train-stats-rollup.service';
 import { TrainIngestionService } from './train-ingestion.service';
@@ -10,9 +9,6 @@ import type { TrainDelta } from './utils/diff-trains.util';
 describe('TrainIngestionService', () => {
   let stationSyncService: jest.Mocked<
     Pick<TrainStationSyncService, 'syncIfNeeded'>
-  >;
-  let snapshotPersistenceService: jest.Mocked<
-    Pick<TrainSnapshotPersistenceService, 'recordSnapshot'>
   >;
   let eventPersistenceService: jest.Mocked<
     Pick<TrainEventPersistenceService, 'recordDelta'>
@@ -26,9 +22,6 @@ describe('TrainIngestionService', () => {
     stationSyncService = {
       syncIfNeeded: jest.fn().mockResolvedValue(undefined),
     };
-    snapshotPersistenceService = {
-      recordSnapshot: jest.fn().mockResolvedValue(undefined),
-    };
     eventPersistenceService = {
       recordDelta: jest.fn().mockResolvedValue(undefined),
     };
@@ -37,7 +30,6 @@ describe('TrainIngestionService', () => {
     };
     service = new TrainIngestionService(
       stationSyncService as unknown as TrainStationSyncService,
-      snapshotPersistenceService as unknown as TrainSnapshotPersistenceService,
       eventPersistenceService as unknown as TrainEventPersistenceService,
       statsRollupService as unknown as TrainStatsRollupService,
     );
@@ -76,11 +68,7 @@ describe('TrainIngestionService', () => {
     expect(
       stationSyncService.syncIfNeeded.mock.invocationCallOrder[0],
     ).toBeLessThan(
-      snapshotPersistenceService.recordSnapshot.mock.invocationCallOrder[0],
-    );
-    expect(snapshotPersistenceService.recordSnapshot).toHaveBeenCalledWith(
-      [createTrain()],
-      '2026-03-09T10:00:10.000Z',
+      eventPersistenceService.recordDelta.mock.invocationCallOrder[0],
     );
     expect(eventPersistenceService.recordDelta).toHaveBeenCalledWith(delta);
     expect(statsRollupService.refreshHourlyRollup).toHaveBeenCalledWith(
@@ -90,7 +78,6 @@ describe('TrainIngestionService', () => {
   });
 
   it('keeps helper methods delegating to the split services', async () => {
-    await service.recordSnapshot([createTrain()], '2026-03-09T10:00:00.000Z');
     await service.recordDelta({
       type: 'removed',
       data: {
@@ -103,8 +90,6 @@ describe('TrainIngestionService', () => {
       '2026-03-09T10:15:00.000Z',
     );
 
-    expect(stationSyncService.syncIfNeeded).toHaveBeenCalled();
-    expect(snapshotPersistenceService.recordSnapshot).toHaveBeenCalled();
     expect(eventPersistenceService.recordDelta).toHaveBeenCalled();
     expect(statsRollupService.refreshHourlyRollup).toHaveBeenCalled();
   });

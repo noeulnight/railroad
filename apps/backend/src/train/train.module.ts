@@ -5,7 +5,6 @@ import { TrainController } from './train.controller';
 import { KorailModule } from 'src/korail/korail.module';
 import { TrainIngestionService } from './train-ingestion.service';
 import { TrainEventPersistenceService } from './ingestion/train-event-persistence.service';
-import { TrainSnapshotPersistenceService } from './ingestion/train-snapshot-persistence.service';
 import { TrainStationSyncService } from './ingestion/train-station-sync.service';
 import { TrainStatsRollupService } from './ingestion/train-stats-rollup.service';
 import { TrainPollingService } from './runtime/train-polling.service';
@@ -21,9 +20,9 @@ import { TrainStreamBroadcasterService } from './runtime/train-stream-broadcaste
     TrainPollingService,
     TrainStreamBroadcasterService,
     TrainStationSyncService,
-    TrainSnapshotPersistenceService,
     TrainEventPersistenceService,
     TrainStatsRollupService,
   ],
+  exports: [TrainStreamBroadcasterService],
 })
 export class TrainModule {}

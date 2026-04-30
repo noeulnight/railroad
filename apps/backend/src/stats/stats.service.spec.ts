@@ -1,24 +1,22 @@
 import { NotFoundException } from '@nestjs/common';
-import { TrainDirection } from '@prisma/client';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { Direction } from 'src/korail/interface/train.interface';
+import type { Train } from 'src/train/interface/train.interface';
+import { TrainStreamBroadcasterService } from 'src/train/runtime/train-stream-broadcaster.service';
 import { StatsService } from './stats.service';
 
 describe('StatsService', () => {
   let prismaService: {
-    trainSnapshotSample: { findFirst: jest.Mock; findMany: jest.Mock };
     trainStatsHourly: { findMany: jest.Mock };
     trainEvent: { findMany: jest.Mock };
     station: { findMany: jest.Mock };
     $queryRaw: jest.Mock;
   };
+  let broadcaster: jest.Mocked<Pick<TrainStreamBroadcasterService, 'getSnapshot'>>;
   let service: StatsService;
 
   beforeEach(() => {
     prismaService = {
-      trainSnapshotSample: {
-        findFirst: jest.fn(),
-        findMany: jest.fn(),
-      },
       trainStatsHourly: {
         findMany: jest.fn(),
       },
@@ -30,37 +28,41 @@ describe('StatsService', () => {
       },
       $queryRaw: jest.fn(),
     };
-    service = new StatsService(prismaService as unknown as PrismaService);
+    broadcaster = {
+      getSnapshot: jest.fn(),
+    };
+    service = new StatsService(
+      prismaService as unknown as PrismaService,
+      broadcaster as unknown as TrainStreamBroadcasterService,
+    );
   });
 
   it('builds live stats from the most recent snapshot only', async () => {
-    const sampledAt = new Date('2026-03-09T10:00:00.000Z');
-
-    prismaService.trainSnapshotSample.findFirst.mockResolvedValue({
-      sampledAt,
+    broadcaster.getSnapshot.mockReturnValue({
+      polledAt: '2026-03-09T10:00:00.000Z',
+      total: 2,
+      trains: [
+        createTrain({
+          id: '1',
+          delay: 0,
+          currentStation: { name: '서울', grade: 1 },
+          nextStation: undefined,
+          direction: Direction.UP,
+        }),
+        createTrain({
+          id: '2',
+          delay: 8,
+          currentStation: { name: '대전', grade: 1 },
+          nextStation: { name: '동대구', grade: 1 },
+          direction: Direction.DOWN,
+        }),
+      ],
     });
-    prismaService.trainSnapshotSample.findMany.mockResolvedValue([
-      createSample({
-        trainId: '1',
-        type: 'KTX',
-        direction: TrainDirection.UP,
-        delayMinutes: 0,
-        currentStationName: '서울',
-      }),
-      createSample({
-        trainId: '2',
-        type: 'KTX',
-        direction: TrainDirection.DOWN,
-        delayMinutes: 8,
-        currentStationName: '대전',
-        nextStationName: '동대구',
-      }),
-    ]);
 
     const result = await service.getLiveStats();
 
     expect(result).toMatchObject({
-      sampledAt: sampledAt.toISOString(),
+      sampledAt: '2026-03-09T10:00:00.000Z',
       totals: {
         totalTrains: 2,
         delayedTrains: 1,
@@ -94,27 +96,29 @@ describe('StatsService', () => {
   });
 
   it('returns station stats ordered by active train count', async () => {
-    const sampledAt = new Date('2026-03-09T10:00:00.000Z');
-
-    prismaService.trainSnapshotSample.findFirst.mockResolvedValue({
-      sampledAt,
+    broadcaster.getSnapshot.mockReturnValue({
+      polledAt: '2026-03-09T10:00:00.000Z',
+      total: 3,
+      trains: [
+        createTrain({
+          currentStation: { name: '서울', grade: 1 },
+          nextStation: { name: '대전', grade: 1 },
+          delayMinutes: 3,
+        }),
+        createTrain({
+          id: '2',
+          currentStation: { name: '서울', grade: 1 },
+          nextStation: { name: '대전', grade: 1 },
+          delay: 9,
+        }),
+        createTrain({
+          id: '3',
+          currentStation: { name: '대전', grade: 2 },
+          nextStation: { name: '동대구', grade: 1 },
+          delay: 0,
+        }),
+      ],
     });
-    prismaService.trainSnapshotSample.findMany.mockResolvedValue([
-      createSample({
-        currentStationName: '서울',
-        delayMinutes: 3,
-      }),
-      createSample({
-        trainId: '2',
-        currentStationName: '서울',
-        delayMinutes: 9,
-      }),
-      createSample({
-        trainId: '3',
-        currentStationName: '대전',
-        delayMinutes: 0,
-      }),
-    ]);
     prismaService.station.findMany.mockResolvedValue([
       { name: '서울', grade: 1 },
       { name: '대전', grade: 2 },
@@ -133,30 +137,29 @@ describe('StatsService', () => {
   });
 
   it('returns active segment stats from the latest snapshot', async () => {
-    const sampledAt = new Date('2026-03-09T10:00:00.000Z');
-
-    prismaService.trainSnapshotSample.findFirst.mockResolvedValue({
-      sampledAt,
+    broadcaster.getSnapshot.mockReturnValue({
+      polledAt: '2026-03-09T10:00:00.000Z',
+      total: 3,
+      trains: [
+        createTrain({
+          currentStation: { name: '서울', grade: 1 },
+          nextStation: { name: '대전', grade: 1 },
+          delay: 4,
+        }),
+        createTrain({
+          id: '2',
+          currentStation: { name: '서울', grade: 1 },
+          nextStation: { name: '대전', grade: 1 },
+          delay: 10,
+        }),
+        createTrain({
+          id: '3',
+          currentStation: { name: '대전', grade: 1 },
+          nextStation: { name: '동대구', grade: 1 },
+          delay: 0,
+        }),
+      ],
     });
-    prismaService.trainSnapshotSample.findMany.mockResolvedValue([
-      createSample({
-        currentStationName: '서울',
-        nextStationName: '대전',
-        delayMinutes: 4,
-      }),
-      createSample({
-        trainId: '2',
-        currentStationName: '서울',
-        nextStationName: '대전',
-        delayMinutes: 10,
-      }),
-      createSample({
-        trainId: '3',
-        currentStationName: '대전',
-        nextStationName: '동대구',
-        delayMinutes: 0,
-      }),
-    ]);
 
     const result = await service.getSegmentStats();
 
@@ -171,7 +174,6 @@ describe('StatsService', () => {
   });
 
   it('throws when no train history exists', async () => {
-    prismaService.trainSnapshotSample.findMany.mockResolvedValue([]);
     prismaService.trainEvent.findMany.mockResolvedValue([]);
 
     await expect(service.getTrainHistory('missing')).rejects.toBeInstanceOf(
@@ -213,17 +215,34 @@ describe('StatsService', () => {
   });
 });
 
-function createSample(overrides: Record<string, unknown> = {}) {
+function createTrain(
+  overrides: Partial<Train> & { delayMinutes?: number } = {},
+): Train {
+  const delay =
+    overrides.delayMinutes ??
+    overrides.delay ??
+    0;
+
   return {
-    sampledAt: new Date('2026-03-09T10:00:00.000Z'),
-    trainId: '1',
+    id: '1',
     type: 'KTX',
-    direction: TrainDirection.UP,
-    delayMinutes: 0,
-    currentStationName: '서울',
-    nextStationName: '대전',
-    latitude: 37.55,
-    longitude: 126.97,
+    direction: Direction.UP,
+    geometry: {
+      bearing: 0,
+      latitude: 37.55,
+      longitude: 126.97,
+    },
+    department: {
+      station: { name: '서울', grade: 1 },
+      date: new Date('2026-03-09T07:00:00.000Z'),
+    },
+    arrival: {
+      stations: { name: '부산', grade: 1 },
+      date: new Date('2026-03-09T10:00:00.000Z'),
+    },
+    currentStation: { name: '서울', grade: 1 },
+    nextStation: { name: '대전', grade: 1 },
+    delay,
     ...overrides,
   };
 }
