@@ -210,7 +210,7 @@ const StaticMapLayers = memo(function StaticMapLayers(props: {
       />
 
       <TileLayer
-        url="https://tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png"
+        url="https://osm.lth.so/tiles/railway/{z}/{x}/{y}.png"
         attribution='&copy; <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA 2.0</a> <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> and <a href="https://osm.org/copyright"</a>OpenStreetMap</a>'
         maxZoom={20}
         minZoom={8}
