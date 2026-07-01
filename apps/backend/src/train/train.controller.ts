@@ -6,14 +6,14 @@ import {
   TrainScheduleParamsDto,
   TrainScheduleQueryDto,
 } from './dto/train-schedule.dto';
-import { TrainEventsService } from './train-events.service';
+import { TrainStreamBroadcasterService } from './runtime/train-stream-broadcaster.service';
 import { TrainService } from './train.service';
 
 @Controller('train')
 export class TrainController {
   constructor(
     private readonly trainService: TrainService,
-    private readonly trainEventsService: TrainEventsService,
+    private readonly broadcaster: TrainStreamBroadcasterService,
   ) {}
 
   @Get()
@@ -31,6 +31,6 @@ export class TrainController {
 
   @Sse('events')
   public trainEvents(@Req() request: Request): Observable<MessageEvent> {
-    return this.trainEventsService.createEventsStream(request);
+    return this.broadcaster.createEventsStream(request);
   }
 }

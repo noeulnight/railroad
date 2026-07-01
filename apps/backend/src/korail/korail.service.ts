@@ -1,26 +1,26 @@
 import { HttpService } from '@nestjs/axios';
-import { KorailBaseInterface } from './interface/base.interface';
-import { KorailStation, Station } from './interface/station.interface';
-import { Direction, KorailTrain } from './interface/train.interface';
+import { KorailBaseInterface } from './interfaces/base.interface';
+import { KorailStation, Station } from './interfaces/station.interface';
+import { Direction, KorailTrain } from './interfaces/train.interface';
 import { parseKorailDateTime } from './utils/parse-korail-date-time.util';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Inject, Injectable } from '@nestjs/common';
 import type { Cache } from 'cache-manager';
 import { firstValueFrom } from 'rxjs';
-import type { Train } from 'src/train/interface/train.interface';
+import type { Train } from 'src/train/interfaces/train.interface';
+import {
+  KORAIL_STATIONS_CACHE_KEY,
+  KORAIL_STATIONS_TTL_MS,
+  KORAIL_TRAIN_BBOX,
+} from './constants/korail.constants';
 import {
   KorailTimeInfo,
   Schedule,
   TimeInfo,
-} from './interface/schedule.interface';
-
-const STATIONS_CACHE_KEY = 'STATIONS';
-const STATIONS_TTL_MS = 1000 * 60 * 60 * 24;
+} from './interfaces/schedule.interface';
 
 @Injectable()
 export class KorailService {
-  private readonly trainBbox =
-    '121.74982535467505,31.983111467376006,132.99419960204577,41.07253721145443';
   private stationsByName?: Map<string, Station>;
 
   constructor(
@@ -29,7 +29,9 @@ export class KorailService {
   ) {}
 
   public async getStations(): Promise<Station[]> {
-    const cached = await this.cacheManager.get<Station[]>(STATIONS_CACHE_KEY);
+    const cached = await this.cacheManager.get<Station[]>(
+      KORAIL_STATIONS_CACHE_KEY,
+    );
     if (cached) return this.cacheStations(cached);
 
     return this.fetchStations();
@@ -40,7 +42,7 @@ export class KorailService {
       this.getStations(),
       firstValueFrom(
         this.httpService.get<KorailBaseInterface<KorailTrain>>('/train', {
-          params: { bbox: this.trainBbox },
+          params: { bbox: KORAIL_TRAIN_BBOX },
         }),
       ),
     ]);
@@ -117,9 +119,9 @@ export class KorailService {
       });
 
     await this.cacheManager.set<Station[]>(
-      STATIONS_CACHE_KEY,
+      KORAIL_STATIONS_CACHE_KEY,
       parsedStations,
-      STATIONS_TTL_MS,
+      KORAIL_STATIONS_TTL_MS,
     );
 
     return this.cacheStations(parsedStations);
@@ -189,13 +191,8 @@ export class KorailService {
   }
 
   private parseScheduleDateTime(date: string, time: string): Date | undefined {
-    if (!/^\d{8}$/.test(date)) {
-      return undefined;
-    }
-
-    if (!/^\d{6}$/.test(time) || time === '999999') {
-      return undefined;
-    }
+    if (!/^\d{8}$/.test(date)) return undefined;
+    if (!/^\d{6}$/.test(time) || time === '999999') return undefined;
 
     try {
       return parseKorailDateTime(`${date}${time}`);
@@ -205,9 +202,7 @@ export class KorailService {
   }
 
   private parseScheduleDateOnly(date: string): Date | undefined {
-    if (!/^\d{8}$/.test(date)) {
-      return undefined;
-    }
+    if (!/^\d{8}$/.test(date)) return undefined;
 
     try {
       return parseKorailDateTime(`${date}000000`);

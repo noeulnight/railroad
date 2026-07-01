@@ -1,6 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { KorailService } from 'src/korail/korail.service';
-import type { Train } from '../interface/train.interface';
+import type { Train } from '../interfaces/train.interface';
 import { TrainIngestionService } from '../train-ingestion.service';
 import {
   buildTrainSnapshot,
@@ -8,12 +13,11 @@ import {
   type TrainDelta,
 } from '../utils/diff-trains.util';
 import { TrainStreamBroadcasterService } from './train-stream-broadcaster.service';
-import type { TrainPollResult } from './train-runtime.types';
-
-const TRAIN_POLL_INTERVAL_MS = 5_000;
+import type { TrainPollResult } from '../types/train-runtime.type';
+import { TRAIN_POLL_INTERVAL_MS } from '../constants/train.constants';
 
 @Injectable()
-export class TrainPollingService {
+export class TrainPollingService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(TrainPollingService.name);
   private pollingSessionId = 0;
   private latestSnapshot = new Map<string, Train>();
@@ -27,6 +31,14 @@ export class TrainPollingService {
     private readonly trainIngestionService: TrainIngestionService,
     private readonly broadcaster: TrainStreamBroadcasterService,
   ) {}
+
+  public onModuleInit() {
+    this.start();
+  }
+
+  public onModuleDestroy() {
+    this.stop();
+  }
 
   public start() {
     if (this.pollingTimer) {

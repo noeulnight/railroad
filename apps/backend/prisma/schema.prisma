@@ -28,25 +28,6 @@ model Station {
   @@map("stations")
 }
 
-model TrainSnapshotSample {
-  id                   String         @id @default(cuid())
-  sampledAt            DateTime       @map("sampled_at")
-  trainId              String         @map("train_id")
-  type                 String
-  direction            TrainDirection
-  delayMinutes         Int            @map("delay_minutes")
-  currentStationName   String?        @map("current_station_name")
-  nextStationName      String?        @map("next_station_name")
-  departureStationName String?        @map("departure_station_name")
-  arrivalStationName   String?        @map("arrival_station_name")
-  latitude             Float
-  longitude            Float
-
-  @@index([sampledAt])
-  @@index([trainId, sampledAt(sort: Desc)])
-  @@map("train_snapshot_samples")
-}
-
 model TrainEvent {
   id                 String          @id @default(cuid())
   occurredAt         DateTime        @map("occurred_at")
@@ -65,17 +46,4 @@ model TrainEvent {
   @@index([occurredAt])
   @@index([trainId, occurredAt(sort: Desc)])
   @@map("train_events")
-}
-
-model TrainStatsHourly {
-  id                String   @id @default(cuid())
-  bucketStart       DateTime @unique @map("bucket_start")
-  activeTrainCount  Int      @default(0) @map("active_train_count")
-  delayedTrainCount Int      @default(0) @map("delayed_train_count")
-  avgDelay          Float    @default(0) @map("avg_delay")
-  maxDelay          Int      @default(0) @map("max_delay")
-  createdCount      Int      @default(0) @map("created_count")
-  removedCount      Int      @default(0) @map("removed_count")
-
-  @@map("train_stats_hourly")
 }

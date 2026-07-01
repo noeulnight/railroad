@@ -4,7 +4,7 @@ import type {
   TrainCreatedEventData,
   TrainRemovedEventData,
   TrainUpdatedEventData,
-} from '../interface/train.interface';
+} from '../interfaces/train.interface';
 import type { TrainDelta } from '../utils/diff-trains.util';
 import {
   mapCreatedEventRow,

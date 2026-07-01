@@ -1,8 +1,7 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { KorailService } from 'src/korail/korail.service';
 import { PrismaService } from 'src/prisma/prisma.service';
-
-const STATION_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;
+import { TRAIN_STATION_SYNC_INTERVAL_MS } from '../constants/train.constants';
 
 @Injectable()
 export class TrainStationSyncService implements OnModuleInit {
@@ -24,7 +23,7 @@ export class TrainStationSyncService implements OnModuleInit {
     if (
       !force &&
       this.lastStationSyncAt &&
-      now - this.lastStationSyncAt < STATION_SYNC_INTERVAL_MS
+      now - this.lastStationSyncAt < TRAIN_STATION_SYNC_INTERVAL_MS
     ) {
       return;
     }

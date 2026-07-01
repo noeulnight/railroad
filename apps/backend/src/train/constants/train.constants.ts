@@ -1,0 +1,2 @@
+export const TRAIN_POLL_INTERVAL_MS = 5_000;
+export const TRAIN_STATION_SYNC_INTERVAL_MS = 24 * 60 * 60 * 1000;

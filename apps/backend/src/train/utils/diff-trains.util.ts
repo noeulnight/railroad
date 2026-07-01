@@ -3,7 +3,7 @@ import type {
   TrainCreatedEventData,
   TrainRemovedEventData,
   TrainUpdatedEventData,
-} from '../interface/train.interface';
+} from '../interfaces/train.interface';
 
 export type TrainDelta =
   | {

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import type { Schedule } from 'src/korail/interface/schedule.interface';
+import type { Schedule } from 'src/korail/interfaces/schedule.interface';
 import { KorailService } from 'src/korail/korail.service';
-import type { TrainListResponse } from './interface/train.interface';
+import type { TrainListResponse } from './interfaces/train.interface';
 
 @Injectable()
 export class TrainService {

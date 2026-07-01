@@ -1,9 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import type { Train } from './interface/train.interface';
 import { TrainEventPersistenceService } from './ingestion/train-event-persistence.service';
 import { TrainStationSyncService } from './ingestion/train-station-sync.service';
-import { TrainStatsRollupService } from './ingestion/train-stats-rollup.service';
-import type { TrainPollResult } from './runtime/train-runtime.types';
+import type { TrainPollResult } from './types/train-runtime.type';
 import type { TrainDelta } from './utils/diff-trains.util';
 
 @Injectable()
@@ -13,7 +11,6 @@ export class TrainIngestionService {
   constructor(
     private readonly stationSyncService: TrainStationSyncService,
     private readonly eventPersistenceService: TrainEventPersistenceService,
-    private readonly statsRollupService: TrainStatsRollupService,
   ) {}
 
   public async ingestPollResult(result: TrainPollResult) {
@@ -23,11 +20,6 @@ export class TrainIngestionService {
       for (const delta of result.deltas) {
         await this.eventPersistenceService.recordDelta(delta);
       }
-
-      await this.statsRollupService.refreshHourlyRollup(
-        result.batch.trains,
-        result.batch.polledAt,
-      );
     } catch (error) {
       this.logger.error(
         'Failed to ingest poll result',
@@ -38,9 +30,5 @@ export class TrainIngestionService {
 
   public async recordDelta(delta: TrainDelta) {
     await this.eventPersistenceService.recordDelta(delta);
-  }
-
-  public async refreshHourlyRollup(trains: Train[], sampledAt: string) {
-    await this.statsRollupService.refreshHourlyRollup(trains, sampledAt);
   }
 }

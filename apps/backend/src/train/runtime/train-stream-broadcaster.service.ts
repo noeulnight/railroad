@@ -2,34 +2,17 @@ import { Injectable } from '@nestjs/common';
 import type { MessageEvent } from '@nestjs/common';
 import type { Request } from 'express';
 import { Observable } from 'rxjs';
-import type {
-  TrainCreatedEventData,
-  TrainRemovedEventData,
-  TrainSnapshotEventData,
-  TrainUpdatedEventData,
-} from '../interface/train.interface';
+import type { TrainSnapshotEventData } from '../interfaces/train.interface';
 import type {
   TrainPollResult,
   TrainStreamMessage,
-} from './train-runtime.types';
+} from '../types/train-runtime.type';
 
-type EventHandlers = {
-  created: (data: TrainCreatedEventData) => void;
-  updated: (data: TrainUpdatedEventData) => void;
-  removed: (data: TrainRemovedEventData) => void;
-};
+type TrainEventSubscriber = (event: TrainStreamMessage) => void;
 
 @Injectable()
 export class TrainStreamBroadcasterService {
-  private readonly createdSubscribers = new Set<
-    (data: TrainCreatedEventData) => void
-  >();
-  private readonly updatedSubscribers = new Set<
-    (data: TrainUpdatedEventData) => void
-  >();
-  private readonly removedSubscribers = new Set<
-    (data: TrainRemovedEventData) => void
-  >();
+  private readonly subscribers = new Set<TrainEventSubscriber>();
   private latestSnapshot?: TrainSnapshotEventData;
   private readonly snapshotWaiters = new Set<
     (snapshot: TrainSnapshotEventData | undefined) => void
@@ -56,27 +39,6 @@ export class TrainStreamBroadcasterService {
         subscriber.next(event);
       };
 
-      const eventHandlers: EventHandlers = {
-        created: (data) => {
-          emitEvent({
-            type: 'created',
-            data,
-          });
-        },
-        updated: (data) => {
-          emitEvent({
-            type: 'updated',
-            data,
-          });
-        },
-        removed: (data) => {
-          emitEvent({
-            type: 'removed',
-            data,
-          });
-        },
-      };
-
       const completeStream = () => {
         if (isClosed) {
           return;
@@ -84,7 +46,7 @@ export class TrainStreamBroadcasterService {
 
         isClosed = true;
         request.off('close', handleClose);
-        this.unsubscribe(eventHandlers);
+        this.unsubscribe(emitEvent);
         subscriber.complete();
       };
 
@@ -93,13 +55,10 @@ export class TrainStreamBroadcasterService {
       };
 
       request.on('close', handleClose);
-      this.subscribe(eventHandlers);
+      this.subscribe(emitEvent);
 
       void this.waitForSnapshot(request).then((snapshot) => {
-        if (isClosed || !snapshot) {
-          return;
-        }
-
+        if (isClosed || !snapshot) return;
         subscriber.next({
           type: 'snapshot',
           data: snapshot,
@@ -137,22 +96,13 @@ export class TrainStreamBroadcasterService {
     }
 
     for (const delta of result.deltas) {
-      switch (delta.type) {
-        case 'created':
-          for (const subscriber of this.createdSubscribers) {
-            subscriber(delta.data);
-          }
-          break;
-        case 'updated':
-          for (const subscriber of this.updatedSubscribers) {
-            subscriber(delta.data);
-          }
-          break;
-        case 'removed':
-          for (const subscriber of this.removedSubscribers) {
-            subscriber(delta.data);
-          }
-          break;
+      const event: TrainStreamMessage = {
+        type: delta.type,
+        data: delta.data,
+      };
+
+      for (const subscriber of this.subscribers) {
+        subscriber(event);
       }
     }
   }
@@ -161,16 +111,12 @@ export class TrainStreamBroadcasterService {
     return this.latestSnapshot;
   }
 
-  private subscribe(eventHandlers: EventHandlers) {
-    this.createdSubscribers.add(eventHandlers.created);
-    this.updatedSubscribers.add(eventHandlers.updated);
-    this.removedSubscribers.add(eventHandlers.removed);
+  private subscribe(subscriber: TrainEventSubscriber) {
+    this.subscribers.add(subscriber);
   }
 
-  private unsubscribe(eventHandlers: EventHandlers) {
-    this.createdSubscribers.delete(eventHandlers.created);
-    this.updatedSubscribers.delete(eventHandlers.updated);
-    this.removedSubscribers.delete(eventHandlers.removed);
+  private unsubscribe(subscriber: TrainEventSubscriber) {
+    this.subscribers.delete(subscriber);
   }
 
   private async waitForSnapshot(
