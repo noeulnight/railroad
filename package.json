@@ -22,6 +22,12 @@
     "test:backend": "pnpm --filter @railroad/backend test"
   },
   "devDependencies": {
-    "turbo": "^2.5.8"
+    "turbo": "^2.10.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "@hono/node-server": "1.19.14",
+      "multer": "2.2.0"
+    }
   }
 }
