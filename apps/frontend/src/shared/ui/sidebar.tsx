@@ -12,6 +12,7 @@ import { Input } from "@/shared/ui/input"
 import { Separator } from "@/shared/ui/separator"
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -187,7 +188,7 @@ function Sidebar({
           data-sidebar="sidebar"
           data-slot="sidebar"
           data-mobile="true"
-          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+          className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:top-2.5 [&>button]:right-2.5 [&>button]:flex [&>button]:size-9 [&>button]:items-center [&>button]:justify-center [&>button]:rounded-md [&>button]:hover:bg-sidebar-accent"
           style={
             {
               "--sidebar-width": SIDEBAR_WIDTH_MOBILE,
@@ -498,6 +499,7 @@ const sidebarMenuButtonVariants = cva(
 function SidebarMenuButton({
   asChild = false,
   isActive = false,
+  closeOnMobile = false,
   variant = "default",
   size = "default",
   tooltip,
@@ -506,6 +508,7 @@ function SidebarMenuButton({
 }: React.ComponentProps<"button"> & {
   asChild?: boolean
   isActive?: boolean
+  closeOnMobile?: boolean
   tooltip?: string | React.ComponentProps<typeof TooltipContent>
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const Comp = asChild ? Slot.Root : "button"
@@ -522,8 +525,15 @@ function SidebarMenuButton({
     />
   )
 
+  const interactiveButton =
+    closeOnMobile && isMobile ? (
+      <SheetClose asChild>{button}</SheetClose>
+    ) : (
+      button
+    )
+
   if (!tooltip) {
-    return button
+    return interactiveButton
   }
 
   if (typeof tooltip === "string") {
@@ -534,7 +544,7 @@ function SidebarMenuButton({
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipTrigger asChild>{interactiveButton}</TooltipTrigger>
       <TooltipContent
         side="right"
         align="center"

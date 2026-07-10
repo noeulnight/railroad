@@ -3,26 +3,23 @@ import { TrainModule } from './train/train.module';
 import { StationModule } from './station/station.module';
 import { KorailModule } from './korail/korail.module';
 import { CacheModule } from '@nestjs/cache-manager';
-import { EventEmitterModule } from '@nestjs/event-emitter';
-import { PrismaModule } from './prisma/prisma.module';
 import { ConfigModule } from '@nestjs/config';
 import { configurationValidationSchema } from './config/configuration.validation';
-import { databaseConfig } from './config/configs/database.config';
 import { serverConfig } from './config/configs/server.config';
+import { PublicApiModule } from './public-api/public-api.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, serverConfig],
+      load: [serverConfig],
       validationSchema: configurationValidationSchema,
     }),
     CacheModule.register({ isGlobal: true }),
-    EventEmitterModule.forRoot({ global: true }),
-    PrismaModule,
     TrainModule,
     StationModule,
     KorailModule,
+    PublicApiModule,
   ],
 })
 export class AppModule {}

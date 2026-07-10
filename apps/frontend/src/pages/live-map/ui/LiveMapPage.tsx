@@ -33,14 +33,12 @@ export function LiveMapPage() {
   return (
     <div className="relative h-screen w-full overflow-hidden">
       {selectedTrain ? (
-        <div
-          className="pointer-events-none fixed inset-0 z-1000 flex items-end justify-center bg-slate-950/30 p-3 md:absolute md:inset-y-0 md:right-0 md:left-auto md:items-stretch md:justify-end md:bg-transparent md:p-0 md:py-4 md:pr-4"
-        >
-          <div className="pointer-events-auto relative flex h-[calc(100vh-7.5rem)] w-full max-w-sm flex-col md:h-full md:w-80 md:max-w-96">
-            <div className="h-full w-full overflow-hidden rounded-lg border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-sm">
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[1050] flex justify-center px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:absolute md:inset-y-0 md:right-0 md:left-auto md:items-stretch md:justify-end md:p-0 md:py-4 md:pr-4">
+          <div className="pointer-events-auto relative flex h-[72dvh] w-full max-w-lg flex-col md:h-full md:w-80 md:max-w-96">
+            <div className="h-full w-full overflow-hidden rounded-t-2xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-lg md:rounded-lg md:shadow-sm">
               <div className="h-full">
                 <TrainPopup
-                  key={`${selectedTrain.id}-${selectedTrain.department.date}`}
+                  key={`${selectedTrain.id}-${selectedTrain.departure.date}`}
                   train={selectedTrain}
                   onClose={clearSelectedTrain}
                 />
@@ -53,7 +51,11 @@ export function LiveMapPage() {
       <MapContainer
         center={INITIAL_POSITION}
         zoom={data.zoomLevel}
-        zoomSnap={0.5}
+        zoomAnimation
+        markerZoomAnimation
+        fadeAnimation
+        zoomAnimationThreshold={8}
+        scrollWheelZoom
         maxBounds={MAP_BOUNDS}
         maxBoundsViscosity={1}
         zoomControl={false}

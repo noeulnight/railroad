@@ -2,15 +2,11 @@ import { Logger } from '@nestjs/common';
 import { Direction } from 'src/korail/interfaces/train.interface';
 import { KorailService } from 'src/korail/korail.service';
 import type { Train } from '../interfaces/train.interface';
-import { TrainIngestionService } from '../train-ingestion.service';
 import { TrainStreamBroadcasterService } from '../runtime/train-stream-broadcaster.service';
 import { TrainPollingService } from '../runtime/train-polling.service';
 
 describe('TrainPollingService', () => {
   let korailService: jest.Mocked<Pick<KorailService, 'getTrains'>>;
-  let ingestionService: jest.Mocked<
-    Pick<TrainIngestionService, 'ingestPollResult'>
-  >;
   let broadcaster: jest.Mocked<
     Pick<TrainStreamBroadcasterService, 'publishPollResult' | 'getSnapshot'>
   >;
@@ -20,16 +16,12 @@ describe('TrainPollingService', () => {
     korailService = {
       getTrains: jest.fn(),
     };
-    ingestionService = {
-      ingestPollResult: jest.fn().mockResolvedValue(undefined),
-    };
     broadcaster = {
       publishPollResult: jest.fn(),
       getSnapshot: jest.fn(),
     };
     service = new TrainPollingService(
       korailService as unknown as KorailService,
-      ingestionService as unknown as TrainIngestionService,
       broadcaster as unknown as TrainStreamBroadcasterService,
     );
   });
@@ -66,7 +58,6 @@ describe('TrainPollingService', () => {
     await flushPromises();
 
     expect(korailService.getTrains).toHaveBeenCalledTimes(2);
-    expect(ingestionService.ingestPollResult).toHaveBeenCalledTimes(2);
     expect(broadcaster.publishPollResult).toHaveBeenCalledTimes(2);
   });
 
@@ -85,6 +76,79 @@ describe('TrainPollingService', () => {
 
     expect(korailService.getTrains).toHaveBeenCalledTimes(2);
     expect(broadcaster.publishPollResult).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses time since the position actually changed across stale polls', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-03-09T00:00:00.000Z'));
+    const unchangedTrain = createTrain();
+    const movedTrain = createTrain({
+      geometry: {
+        ...unchangedTrain.geometry,
+        latitude: unchangedTrain.geometry.latitude + 0.0089932,
+      },
+    });
+    korailService.getTrains
+      .mockResolvedValueOnce([unchangedTrain])
+      .mockResolvedValueOnce([unchangedTrain])
+      .mockResolvedValueOnce([unchangedTrain])
+      .mockResolvedValueOnce([movedTrain]);
+
+    service.start();
+    await flushPromises();
+
+    for (let poll = 0; poll < 3; poll += 1) {
+      jest.advanceTimersByTime(5_000);
+      await flushPromises();
+    }
+
+    const latestResult = broadcaster.publishPollResult.mock.calls.at(-1)?.[0];
+
+    expect(latestResult?.batch.trains[0].speedKmh).toBeCloseTo(240, 0);
+    expect(latestResult?.batch.polledAt).toBe('2026-03-09T00:00:15.000Z');
+  });
+
+  it('keeps an implausible jump unconfirmed until elapsed time is plausible', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-03-09T00:00:00.000Z'));
+    const firstTrain = createTrain();
+    const movedTrain = createTrain({
+      geometry: {
+        ...firstTrain.geometry,
+        latitude: firstTrain.geometry.latitude + 0.0089932,
+      },
+    });
+    korailService.getTrains
+      .mockResolvedValueOnce([firstTrain])
+      .mockResolvedValueOnce([movedTrain])
+      .mockResolvedValueOnce([movedTrain])
+      .mockResolvedValueOnce([movedTrain]);
+
+    service.start();
+    await flushPromises();
+
+    jest.advanceTimersByTime(5_000);
+    await flushPromises();
+    expect(
+      broadcaster.publishPollResult.mock.calls.at(-1)?.[0].batch.trains[0]
+        .speedKmh,
+    ).toBeNull();
+
+    jest.advanceTimersByTime(5_000);
+    await flushPromises();
+    expect(
+      broadcaster.publishPollResult.mock.calls.at(-1)?.[0].batch.trains[0]
+        .speedKmh,
+    ).toBeNull();
+
+    jest.advanceTimersByTime(5_000);
+    await flushPromises();
+    const recoveredResult =
+      broadcaster.publishPollResult.mock.calls.at(-1)?.[0];
+
+    expect(recoveredResult?.batch.trains[0].speedKmh).toBeCloseTo(240, 0);
+    expect(recoveredResult?.deltas).toHaveLength(1);
+    expect(recoveredResult?.deltas[0]).toMatchObject({ type: 'updated' });
   });
 
   it('stops polling cleanly', async () => {
@@ -126,7 +190,7 @@ function createTrain(overrides: Partial<Train> = {}): Train {
       longitude: 127,
       latitude: 37.5,
     },
-    department: {
+    departure: {
       station: { name: '서울', grade: 1 },
       date: new Date('2026-03-09T00:00:00.000Z'),
     },
@@ -137,6 +201,7 @@ function createTrain(overrides: Partial<Train> = {}): Train {
     currentStation: { name: '대전', grade: 1 },
     nextStation: { name: '동대구', grade: 1 },
     delay: 0,
+    speedKmh: null,
     ...overrides,
   };
 }

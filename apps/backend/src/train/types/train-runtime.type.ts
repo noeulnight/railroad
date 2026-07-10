@@ -1,5 +1,6 @@
 import type {
   Train,
+  TrainGeometry,
   TrainSnapshotEventData,
 } from '../interfaces/train.interface';
 import type { TrainDelta } from '../utils/diff-trains.util';
@@ -16,7 +17,15 @@ export type TrainPollResult = {
   hasPreviousSnapshot: boolean;
 };
 
-export type TrainStreamMessage = {
-  type: 'snapshot' | 'created' | 'updated' | 'removed';
-  data: TrainSnapshotEventData | TrainDelta['data'];
+export type TrainPositionSample = {
+  geometry: TrainGeometry;
+  observedAt: number;
+  speedKmh: number | null;
 };
+
+export type TrainStreamMessage =
+  | {
+      type: 'snapshot';
+      data: TrainSnapshotEventData;
+    }
+  | TrainDelta;

@@ -42,6 +42,22 @@ describe('diffTrains', () => {
     });
   });
 
+  it('returns an updated delta when an estimate becomes available', () => {
+    const previousSnapshot = buildTrainSnapshot([createTrain()]);
+    const nextTrains = [createTrain({ speedKmh: 248.6 })];
+
+    expect(
+      diffTrains(previousSnapshot, nextTrains, '2026-03-09T00:00:10.000Z'),
+    ).toMatchObject([
+      {
+        type: 'updated',
+        data: {
+          train: { speedKmh: 248.6 },
+        },
+      },
+    ]);
+  });
+
   it('returns a created delta for a new train id', () => {
     const previousSnapshot = buildTrainSnapshot([createTrain()]);
     const nextTrains = [createTrain(), createTrain({ id: '2' })];
@@ -90,7 +106,7 @@ function createTrain(overrides: Partial<Train> = {}): Train {
       longitude: 127,
       latitude: 37.5,
     },
-    department: {
+    departure: {
       station: { name: '서울', grade: 1 },
       date: new Date('2026-03-09T00:00:00.000Z'),
     },
@@ -101,6 +117,7 @@ function createTrain(overrides: Partial<Train> = {}): Train {
     currentStation: { name: '대전', grade: 1 },
     nextStation: { name: '동대구', grade: 1 },
     delay: 0,
+    speedKmh: null,
     ...overrides,
   };
 }

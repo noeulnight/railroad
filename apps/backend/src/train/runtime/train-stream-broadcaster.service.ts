@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import type { MessageEvent } from '@nestjs/common';
 import type { Request } from 'express';
 import { Observable } from 'rxjs';
 import type { TrainSnapshotEventData } from '../interfaces/train.interface';
@@ -20,8 +19,8 @@ export class TrainStreamBroadcasterService {
 
   public createEventsStream(
     request: Pick<Request, 'on' | 'off'>,
-  ): Observable<MessageEvent> {
-    return new Observable<MessageEvent>((subscriber) => {
+  ): Observable<TrainStreamMessage> {
+    return new Observable<TrainStreamMessage>((subscriber) => {
       let isClosed = false;
       let isSnapshotSent = false;
       const bufferedEvents: TrainStreamMessage[] = [];
@@ -96,10 +95,7 @@ export class TrainStreamBroadcasterService {
     }
 
     for (const delta of result.deltas) {
-      const event: TrainStreamMessage = {
-        type: delta.type,
-        data: delta.data,
-      };
+      const event: TrainStreamMessage = delta;
 
       for (const subscriber of this.subscribers) {
         subscriber(event);

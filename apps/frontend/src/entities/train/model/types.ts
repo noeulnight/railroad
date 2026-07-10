@@ -11,7 +11,7 @@ export type Train = {
     longitude: number;
     latitude: number;
   };
-  department: {
+  departure: {
     station?: {
       name?: string;
     };
@@ -30,6 +30,7 @@ export type Train = {
     name?: string;
   };
   delay: number;
+  speedKmh: number | null;
 };
 
 export type TrainScheduleItem = {

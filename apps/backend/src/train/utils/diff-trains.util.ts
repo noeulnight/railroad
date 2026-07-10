@@ -45,7 +45,7 @@ export function diffTrains(
       continue;
     }
 
-    if (!hasGeometryChanged(previousTrain, train)) {
+    if (!hasTrainChanged(previousTrain, train)) {
       continue;
     }
 
@@ -76,10 +76,11 @@ export function diffTrains(
   return deltas;
 }
 
-function hasGeometryChanged(previousTrain: Train, nextTrain: Train): boolean {
+function hasTrainChanged(previousTrain: Train, nextTrain: Train): boolean {
   return (
     previousTrain.geometry.bearing !== nextTrain.geometry.bearing ||
     previousTrain.geometry.longitude !== nextTrain.geometry.longitude ||
-    previousTrain.geometry.latitude !== nextTrain.geometry.latitude
+    previousTrain.geometry.latitude !== nextTrain.geometry.latitude ||
+    previousTrain.speedKmh !== nextTrain.speedKmh
   );
 }

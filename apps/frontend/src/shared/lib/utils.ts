@@ -71,7 +71,7 @@ export function formatDirectionLabel(direction: Direction) {
 }
 
 export function getTrainRouteStations(train: Train) {
-  const current = train.currentStation?.name ?? train.department.station?.name;
+  const current = train.currentStation?.name ?? train.departure.station?.name;
   const next = train.nextStation?.name ?? train.arrival.stations?.name;
 
   return { current, next };
@@ -91,8 +91,12 @@ export function formatDelay(delay: number) {
   return delay > 0 ? `+${delay}분` : "정시";
 }
 
+export function formatTrainSpeed(speedKmh: number | null) {
+  return speedKmh === null ? "속도 계산 중" : `${Math.round(speedKmh)} km/h`;
+}
+
 export function getScheduleDate(train: Train) {
-  const referenceDate = train.department.date || train.arrival.date;
+  const referenceDate = train.departure.date || train.arrival.date;
 
   if (!referenceDate) {
     return new Date().toISOString().slice(0, 10).replaceAll("-", "");

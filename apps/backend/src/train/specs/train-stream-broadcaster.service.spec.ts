@@ -89,7 +89,7 @@ function createTrain(overrides: Partial<Train> = {}): Train {
       longitude: 127,
       latitude: 37.5,
     },
-    department: {
+    departure: {
       station: { name: '서울', grade: 1 },
       date: new Date('2026-03-09T00:00:00.000Z'),
     },
@@ -100,6 +100,7 @@ function createTrain(overrides: Partial<Train> = {}): Train {
     currentStation: { name: '대전', grade: 1 },
     nextStation: { name: '동대구', grade: 1 },
     delay: 0,
+    speedKmh: null,
     ...overrides,
   };
 }

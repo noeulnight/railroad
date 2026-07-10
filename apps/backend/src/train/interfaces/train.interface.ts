@@ -12,7 +12,7 @@ export interface Train {
   type: string;
   direction: Direction;
   geometry: TrainGeometry;
-  department: {
+  departure: {
     station?: Station;
     date: Date;
   };
@@ -23,6 +23,7 @@ export interface Train {
   currentStation?: Station;
   nextStation?: Station;
   delay: number;
+  speedKmh: number | null;
 }
 
 export interface TrainListResponse {

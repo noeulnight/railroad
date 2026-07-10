@@ -61,7 +61,7 @@ export class KorailService {
           longitude: geometry.coordinates[0],
           latitude: geometry.coordinates[1],
         },
-        department: {
+        departure: {
           station: this.findStation(properties.dpt_stn_nm, stationsByName),
           date: parseKorailDateTime(properties.dpt_pln_dttm),
         },
@@ -72,6 +72,7 @@ export class KorailService {
         currentStation: this.findStation(properties.now_stn, stationsByName),
         nextStation: this.findStation(nextStation, stationsByName),
         delay: properties.delay || 0,
+        speedKmh: null,
       };
     });
   }

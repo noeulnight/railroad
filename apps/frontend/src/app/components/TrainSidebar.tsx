@@ -96,6 +96,7 @@ function TrainSidebarItem(props: {
         className="h-auto min-h-12 items-start gap-2 py-2 group-data-[collapsible=icon]:items-center"
         isActive={isActive}
         onClick={() => onSelect(train)}
+        closeOnMobile
         size="lg"
         tooltip={`${train.type}#${train.id}`}
         type="button"

@@ -9,6 +9,7 @@ import {
   formatDirectionLabel,
   formatScheduleMeta,
   formatScheduleTime,
+  formatTrainSpeed,
   formatTrainRoute,
   getEffectiveScheduleDelay,
   getScheduleDate,
@@ -72,7 +73,7 @@ export function TrainPopup(props: {
           {onClose ? (
             <button
               aria-label="열차 정보 닫기"
-              className="mt-1 flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              className="flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-full text-sidebar-foreground/65 hover:bg-sidebar-accent hover:text-sidebar-foreground md:mt-1 md:size-8 md:rounded-md"
               onClick={onClose}
               type="button"
             >
@@ -82,11 +83,16 @@ export function TrainPopup(props: {
         </div>
 
         <div className="grid w-full grid-cols-2 gap-1 text-sm">
+          <InfoItem
+            className="col-span-2"
+            label="추정 속도"
+            value={formatTrainSpeed(train.speedKmh)}
+          />
           <InfoItem label="현재역" value={train.currentStation?.name ?? "-"} />
           <InfoItem label="다음역" value={train.nextStation?.name ?? "-"} />
           <InfoItem
             label="출발역"
-            value={train.department.station?.name ?? "-"}
+            value={train.departure.station?.name ?? "-"}
           />
           <InfoItem
             label="도착역"
@@ -94,7 +100,7 @@ export function TrainPopup(props: {
           />
           <InfoItem
             label="예정 출발"
-            value={formatDateTime(train.department.date)}
+            value={formatDateTime(train.departure.date)}
           />
           <InfoItem
             label="예정 도착"
@@ -164,7 +170,7 @@ function ScheduleTab(props: {
     : -1;
 
   return (
-    <div className="h-full space-y-1 overflow-y-auto pr-1 scrollbar-hide max-h-80 md:max-h-max">
+    <div className="h-full max-h-full space-y-1 overflow-y-auto pr-1 scrollbar-hide">
       {props.items.map((item, index) =>
         (() => {
           const effectiveDelay = getEffectiveScheduleDelay(

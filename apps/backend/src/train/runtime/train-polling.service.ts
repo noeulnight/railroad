@@ -6,14 +6,20 @@ import {
 } from '@nestjs/common';
 import { KorailService } from 'src/korail/korail.service';
 import type { Train } from '../interfaces/train.interface';
-import { TrainIngestionService } from '../train-ingestion.service';
 import {
   buildTrainSnapshot,
   diffTrains,
   type TrainDelta,
 } from '../utils/diff-trains.util';
+import {
+  calculateTrainSpeedKmh,
+  hasSameTrainPosition,
+} from '../utils/calculate-train-speed.util';
 import { TrainStreamBroadcasterService } from './train-stream-broadcaster.service';
-import type { TrainPollResult } from '../types/train-runtime.type';
+import type {
+  TrainPollResult,
+  TrainPositionSample,
+} from '../types/train-runtime.type';
 import { TRAIN_POLL_INTERVAL_MS } from '../constants/train.constants';
 
 @Injectable()
@@ -25,10 +31,10 @@ export class TrainPollingService implements OnModuleInit, OnModuleDestroy {
   private pollingPromise?: Promise<void>;
   private pollingPromiseSessionId?: number;
   private pollingTimer?: ReturnType<typeof setInterval>;
+  private positionSamples = new Map<string, TrainPositionSample>();
 
   constructor(
     private readonly korailService: KorailService,
-    private readonly trainIngestionService: TrainIngestionService,
     private readonly broadcaster: TrainStreamBroadcasterService,
   ) {}
 
@@ -48,6 +54,7 @@ export class TrainPollingService implements OnModuleInit, OnModuleDestroy {
     this.pollingSessionId += 1;
     this.latestSnapshot = new Map();
     this.lastPolledAt = undefined;
+    this.positionSamples = new Map();
 
     const sessionId = this.pollingSessionId;
     void this.poll(sessionId);
@@ -69,6 +76,7 @@ export class TrainPollingService implements OnModuleInit, OnModuleDestroy {
 
     this.latestSnapshot = new Map();
     this.lastPolledAt = undefined;
+    this.positionSamples = new Map();
     this.pollingPromise = undefined;
     this.pollingPromiseSessionId = undefined;
   }
@@ -113,27 +121,81 @@ export class TrainPollingService implements OnModuleInit, OnModuleDestroy {
     this.latestSnapshot = result.snapshot;
     this.lastPolledAt = result.batch.polledAt;
 
-    await this.trainIngestionService.ingestPollResult(result);
     this.broadcaster.publishPollResult(result);
   }
 
   private buildPollResult(trains: Train[]): TrainPollResult {
     const polledAt = new Date().toISOString();
+    const trainsWithSpeed = this.attachEstimatedSpeeds(
+      trains,
+      Date.parse(polledAt),
+    );
     const hasPreviousSnapshot = this.lastPolledAt !== undefined;
     const previousSnapshot = this.latestSnapshot;
-    const snapshot = buildTrainSnapshot(trains);
+    const snapshot = buildTrainSnapshot(trainsWithSpeed);
     const deltas: TrainDelta[] = hasPreviousSnapshot
-      ? diffTrains(previousSnapshot, trains, polledAt)
+      ? diffTrains(previousSnapshot, trainsWithSpeed, polledAt)
       : [];
 
     return {
       batch: {
-        trains,
+        trains: trainsWithSpeed,
         polledAt,
       },
       snapshot,
       deltas,
       hasPreviousSnapshot,
     };
+  }
+
+  private attachEstimatedSpeeds(trains: Train[], observedAt: number): Train[] {
+    const activeTrainIds = new Set(trains.map((train) => train.id));
+    const trainsWithSpeed = trains.map((train) =>
+      this.attachEstimatedSpeed(train, observedAt),
+    );
+
+    for (const trainId of this.positionSamples.keys()) {
+      if (!activeTrainIds.has(trainId)) {
+        this.positionSamples.delete(trainId);
+      }
+    }
+
+    return trainsWithSpeed;
+  }
+
+  private attachEstimatedSpeed(train: Train, observedAt: number): Train {
+    const previousSample = this.positionSamples.get(train.id);
+
+    if (!previousSample) {
+      this.positionSamples.set(train.id, {
+        geometry: { ...train.geometry },
+        observedAt,
+        speedKmh: null,
+      });
+
+      return { ...train, speedKmh: null };
+    }
+
+    if (hasSameTrainPosition(previousSample.geometry, train.geometry)) {
+      return { ...train, speedKmh: previousSample.speedKmh };
+    }
+
+    const speedKmh = calculateTrainSpeedKmh(
+      previousSample.geometry,
+      train.geometry,
+      observedAt - previousSample.observedAt,
+    );
+
+    if (speedKmh === null) {
+      return { ...train, speedKmh: null };
+    }
+
+    this.positionSamples.set(train.id, {
+      geometry: { ...train.geometry },
+      observedAt,
+      speedKmh,
+    });
+
+    return { ...train, speedKmh };
   }
 }
