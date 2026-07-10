@@ -31,10 +31,10 @@ export function LiveMapPage() {
     : undefined;
 
   return (
-    <div className="relative h-screen w-full overflow-hidden">
+    <div className="relative h-dvh w-full overflow-hidden md:h-screen">
       {selectedTrain ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[1050] flex justify-center px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] md:absolute md:inset-y-0 md:right-0 md:left-auto md:items-stretch md:justify-end md:p-0 md:py-4 md:pr-4">
-          <div className="pointer-events-auto relative flex h-[72dvh] w-full max-w-lg flex-col md:h-full md:w-80 md:max-w-96">
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[1050] flex justify-center px-2 md:absolute md:inset-y-0 md:right-0 md:left-auto md:items-stretch md:justify-end md:p-0 md:py-4 md:pr-4">
+          <div className="pointer-events-auto relative flex h-[82dvh] w-full max-w-lg flex-col md:h-full md:w-80 md:max-w-96">
             <div className="h-full w-full overflow-hidden rounded-t-2xl border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-lg md:rounded-lg md:shadow-sm">
               <div className="h-full">
                 <TrainPopup

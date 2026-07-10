@@ -31,7 +31,7 @@ export function TrainPopup(props: {
 
   return (
     <div className="relative flex h-full min-w-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
-      <div className="flex min-h-0 flex-1 flex-col gap-2 px-3 py-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-1.5 px-3 pt-3 pb-0 md:gap-2 md:pb-3">
         <div className="flex items-start gap-2">
           <div className="flex min-w-0 flex-1 items-start gap-2 rounded-md bg-sidebar-accent p-2 text-sidebar-accent-foreground">
             <span
@@ -184,7 +184,7 @@ function ScheduleTab(props: {
           return (
             <div
               key={`${item.id}-${item.arrivalTime}`}
-              className={cn("rounded-md bg-sidebar-accent px-3 py-2", {
+              className={cn("rounded-md bg-sidebar-accent px-3 py-2 last:rounded-b-none md:last:rounded-b-md", {
                 "border border-sidebar-ring/35 bg-sidebar":
                   props.currentStation === item.station.name,
               })}
@@ -236,7 +236,7 @@ function InfoItem(props: {
   return (
     <div
       className={cn(
-        "w-full rounded-md bg-sidebar-accent p-2",
+        "w-full rounded-md bg-sidebar-accent px-2 py-1.5 md:p-2",
         props.className,
       )}
     >

@@ -3,7 +3,7 @@ import type L from "leaflet";
 import { useMap, useMapEvents } from "react-leaflet";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
 
-const MOBILE_DETAIL_OCCLUSION_RATIO = 0.72;
+const MOBILE_DETAIL_OCCLUSION_RATIO = 0.82;
 
 export function MapZoomTracker(props: {
   onZoomChange: (zoom: number) => void;

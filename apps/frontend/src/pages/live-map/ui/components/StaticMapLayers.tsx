@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { TileLayer } from "react-leaflet";
+import { MapResizeHandler } from "@/pages/live-map/ui/components/MapResizeHandler";
 import { MapZoomTracker } from "@/pages/live-map/ui/components/MapZoomTracker";
 
 export const StaticMapLayers = memo(function StaticMapLayers(props: {
@@ -21,6 +22,7 @@ export const StaticMapLayers = memo(function StaticMapLayers(props: {
 
   return (
     <>
+      <MapResizeHandler />
       <MapZoomTracker
         onZoomChange={onZoomChange}
         onUserMoveStart={onUserMoveStart}
