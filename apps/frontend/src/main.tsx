@@ -6,6 +6,7 @@ import App from '@/app/App'
 import { ThemeProvider } from '@/app/model/theme'
 import { QueryProvider } from '@/app/providers/QueryProvider'
 import { TrainDashboardProvider } from '@/entities/train/model/TrainDashboardProvider'
+import { TrainFilterProvider } from '@/pages/live-map/model/trainFilter'
 import { TrainSelectionProvider } from '@/pages/live-map/model/trainSelection'
 
 createRoot(document.getElementById('root')!).render(
@@ -14,9 +15,11 @@ createRoot(document.getElementById('root')!).render(
       <ThemeProvider>
         <TrainDashboardProvider>
           <BrowserRouter>
-            <TrainSelectionProvider>
-              <App />
-            </TrainSelectionProvider>
+            <TrainFilterProvider>
+              <TrainSelectionProvider>
+                <App />
+              </TrainSelectionProvider>
+            </TrainFilterProvider>
           </BrowserRouter>
         </TrainDashboardProvider>
       </ThemeProvider>

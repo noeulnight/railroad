@@ -10,14 +10,15 @@ import {
 function App() {
   return (
     <SidebarProvider className="**:data-[slot=sidebar-gap]:hidden">
-      <Sidebar className="z-1001" collapsible="icon" variant="floating">
+      <Sidebar className="z-1001" collapsible="offcanvas" variant="floating">
         <TrainSidebar />
       </Sidebar>
 
+      <div className="pointer-events-none fixed left-3 top-3 z-1002 md:peer-data-[state=expanded]:hidden">
+        <SidebarTrigger className="pointer-events-auto size-10 rounded-full bg-card/90 shadow-md backdrop-blur" />
+      </div>
+
       <main className="relative min-h-svh flex-1 overflow-hidden">
-        <div className="pointer-events-none fixed left-3 top-3 z-1002 md:hidden">
-          <SidebarTrigger className="pointer-events-auto size-10 rounded-full bg-card/90 shadow-md backdrop-blur" />
-        </div>
         <Routes>
           <Route path="/" element={<Navigate to="/map" replace />} />
           <Route path="/map" element={<LiveMapPage />} />

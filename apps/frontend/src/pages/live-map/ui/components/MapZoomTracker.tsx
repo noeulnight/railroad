@@ -1,62 +1,80 @@
 import { useEffect, useRef } from "react";
-import type L from "leaflet";
-import { useMap, useMapEvents } from "react-leaflet";
+import type { Map as MapInstance } from "maplibre-gl";
 import { useIsMobile } from "@/shared/hooks/use-mobile";
+import { easeOutCubic } from "@/shared/lib/utils";
 
 const MOBILE_DETAIL_OCCLUSION_RATIO = 0.82;
 
 export function MapZoomTracker(props: {
+  map: MapInstance;
   onZoomChange: (zoom: number) => void;
   followPosition?: [number, number];
   focusKey?: string;
   focusZoom?: number;
   onUserMoveStart?: () => void;
 }) {
-  const map = useMap();
+  const {
+    map,
+    onZoomChange,
+    onUserMoveStart,
+    followPosition,
+    focusKey,
+    focusZoom,
+  } = props;
   const isMobile = useIsMobile();
   const previousFocusKeyRef = useRef<string | undefined>(undefined);
   const previousFollowPositionRef = useRef<[number, number] | undefined>(
     undefined,
   );
-  const followLatitude = props.followPosition?.[0];
-  const followLongitude = props.followPosition?.[1];
-
-  useMapEvents({
-    dragstart: () => {
-      props.onUserMoveStart?.();
-    },
-    zoomend: (event) => {
-      props.onZoomChange(event.target.getZoom());
-    },
-  });
+  const followLongitude = followPosition?.[0];
+  const followLatitude = followPosition?.[1];
 
   useEffect(() => {
-    if (followLatitude === undefined || followLongitude === undefined) {
-      previousFocusKeyRef.current = props.focusKey;
+    const handleDragStart = () => {
+      onUserMoveStart?.();
+    };
+    const handleZoomEnd = () => {
+      onZoomChange(map.getZoom());
+    };
+
+    map.on("dragstart", handleDragStart);
+    map.on("zoomend", handleZoomEnd);
+
+    return () => {
+      map.off("dragstart", handleDragStart);
+      map.off("zoomend", handleZoomEnd);
+    };
+  }, [map, onUserMoveStart, onZoomChange]);
+
+  useEffect(() => {
+    if (followLongitude === undefined || followLatitude === undefined) {
+      previousFocusKeyRef.current = focusKey;
       previousFollowPositionRef.current = undefined;
       return;
     }
 
     const nextPosition: [number, number] = [
-      followLatitude,
       followLongitude,
+      followLatitude,
     ];
-    const isNewFocus = previousFocusKeyRef.current !== props.focusKey;
+    const isNewFocus = previousFocusKeyRef.current !== focusKey;
     const previousPosition = previousFollowPositionRef.current;
     const hasPositionChanged =
       !previousPosition ||
-      previousPosition[0] !== followLatitude ||
-      previousPosition[1] !== followLongitude;
+      previousPosition[0] !== followLongitude ||
+      previousPosition[1] !== followLatitude;
 
-    previousFocusKeyRef.current = props.focusKey;
+    previousFocusKeyRef.current = focusKey;
     previousFollowPositionRef.current = nextPosition;
 
-    if (isNewFocus && props.focusKey) {
-      const nextZoom = props.focusZoom ?? map.getZoom();
-      map.flyTo(getFollowCenter(map, nextPosition, nextZoom, isMobile), nextZoom, {
-        animate: true,
-        duration: 1.25,
-        easeLinearity: 0.2,
+    if (isNewFocus && focusKey) {
+      const nextZoom = focusZoom ?? map.getZoom();
+      map.flyTo({
+        center: nextPosition,
+        zoom: nextZoom,
+        offset: getFollowOffset(map, isMobile),
+        duration: 1_250,
+        easing: easeOutCubic,
       });
       return;
     }
@@ -65,38 +83,35 @@ export function MapZoomTracker(props: {
       return;
     }
 
-    map.panTo(getFollowCenter(map, nextPosition, map.getZoom(), isMobile), {
-      animate: true,
-      duration: 0.9,
-      easeLinearity: 0.2,
-    });
+    map.panTo(
+      nextPosition,
+      {
+        offset: getFollowOffset(map, isMobile),
+        duration: 900,
+        easing: easeOutCubic,
+      },
+    );
   }, [
     followLatitude,
     followLongitude,
     map,
     isMobile,
-    props.focusKey,
-    props.focusZoom,
+    focusKey,
+    focusZoom,
   ]);
 
   return null;
 }
 
-function getFollowCenter(
-  map: L.Map,
-  trainPosition: [number, number],
-  zoom: number,
+function getFollowOffset(
+  map: MapInstance,
   isMobile: boolean,
-): L.LatLngExpression {
+): [number, number] {
   if (!isMobile) {
-    return trainPosition;
+    return [0, 0];
   }
 
   const verticalOffset =
-    (map.getSize().y * MOBILE_DETAIL_OCCLUSION_RATIO) / 2;
-  const projectedCenter = map
-    .project(trainPosition, zoom)
-    .add([0, verticalOffset]);
-
-  return map.unproject(projectedCenter, zoom);
+    (map.getContainer().clientHeight * MOBILE_DETAIL_OCCLUSION_RATIO) / 2;
+  return [0, -verticalOffset];
 }

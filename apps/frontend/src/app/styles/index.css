@@ -112,33 +112,18 @@
 body {
   min-height: 100vh;
   color: var(--foreground);
-  background:
-    radial-gradient(
-      circle at top,
-      color-mix(in oklab, var(--primary) 12%, transparent),
-      transparent 40%
-    ),
-    var(--background);
+  background: #0a0a0a;
   transition:
     background-color 180ms ease,
-    color 180ms ease,
-    background 180ms ease;
+    color 180ms ease;
 }
 
 #root {
   min-height: 100vh;
 }
 
-.leaflet-popup-content-wrapper {
-  padding: 0 !important;
-}
-
-.leaflet-popup-close-button {
+.train-map-labels-hidden .train-map-label {
   display: none;
-}
-
-.leaflet-popup-content {
-  margin: 0 !important;
 }
 
 @layer utilities {

@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { configurationValidationSchema } from './config/configuration.validation';
 import { serverConfig } from './config/configs/server.config';
 import { PublicApiModule } from './public-api/public-api.module';
+import { RailwayMapModule } from './railway-map/railway-map.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PublicApiModule } from './public-api/public-api.module';
     StationModule,
     KorailModule,
     PublicApiModule,
+    RailwayMapModule,
   ],
 })
 export class AppModule {}
