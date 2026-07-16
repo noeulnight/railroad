@@ -30,6 +30,10 @@ export function TrainSelectionProvider(props: PropsWithChildren) {
   const selectedTrainId =
     urlTrainSelection?.id ??
     (urlTrainSelection ? undefined : manualSelectedTrainId);
+  const selectedStationName =
+    location.pathname === "/map" && !selectedTrainId
+      ? new URLSearchParams(location.search).get("station")?.trim() || undefined
+      : undefined;
   const isFollowingTrain =
     urlTrainSelection !== undefined ? true : isManuallyFollowingTrain;
 
@@ -41,6 +45,7 @@ export function TrainSelectionProvider(props: PropsWithChildren) {
         nextParams.delete("type");
         nextParams.delete("id");
       } else {
+        nextParams.delete("station");
         nextParams.set("type", normalizeTrainType(train.type) ?? train.type);
         nextParams.set("id", train.id);
       }
@@ -74,13 +79,48 @@ export function TrainSelectionProvider(props: PropsWithChildren) {
     updateTrainSearchParams(undefined);
   }, [updateTrainSearchParams]);
 
+  const selectStation = useCallback(
+    (stationName: string) => {
+      setManualSelectedTrainId(undefined);
+      setIsManuallyFollowingTrain(false);
+      const nextParams = new URLSearchParams(location.search);
+
+      nextParams.delete("type");
+      nextParams.delete("id");
+      if (selectedStationName === stationName) {
+        nextParams.delete("station");
+      } else {
+        nextParams.set("station", stationName);
+      }
+
+      const search = nextParams.toString();
+      navigate({ pathname: "/map", search: search ? `?${search}` : "" }, {
+        replace: true,
+      });
+    },
+    [location.search, navigate, selectedStationName],
+  );
+
+  const clearSelectedStation = useCallback(() => {
+    const nextParams = new URLSearchParams(location.search);
+    nextParams.delete("station");
+    const search = nextParams.toString();
+
+    navigate({ pathname: location.pathname, search: search ? `?${search}` : "" }, {
+      replace: true,
+    });
+  }, [location.pathname, location.search, navigate]);
+
   return (
     <TrainSelectionContext.Provider
       value={{
         selectedTrainId,
+        selectedStationName,
         isFollowingTrain,
         selectTrain,
+        selectStation,
         clearSelectedTrain,
+        clearSelectedStation,
       }}
     >
       {props.children}

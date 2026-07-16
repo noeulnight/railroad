@@ -9,6 +9,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarTrigger,
 } from "@/shared/ui/sidebar";
 import {
   cn,
@@ -21,13 +22,17 @@ import {
 import { useTrainDashboard } from "@/entities/train/model/trainDashboardContext";
 import type { Train } from "@/entities/train/model/types";
 import { useTrainSelection } from "@/pages/live-map/model/trainSelectionContext";
+import { useTrainFilter } from "@/pages/live-map/model/trainFilterContext";
+import { matchesTrainFilters } from "@/pages/live-map/model/trainVisualization";
+import { TrainSidebarFilters } from "@/app/components/TrainSidebarFilters";
 
 export function TrainSidebar() {
   const data = useTrainDashboard();
+  const { filters } = useTrainFilter();
   const { selectedTrainId, selectTrain } = useTrainSelection();
   const sortedTrains = useMemo(
     () =>
-      [...data.trains].sort((a, b) => {
+      data.trains.filter((train) => matchesTrainFilters(train, filters)).sort((a, b) => {
         const typeOrder = a.type.localeCompare(b.type, "ko-KR", {
           numeric: true,
         });
@@ -38,15 +43,27 @@ export function TrainSidebar() {
 
         return a.id.localeCompare(b.id, "ko-KR", { numeric: true });
       }),
-    [data.trains],
+    [data.trains, filters],
   );
 
   return (
     <>
-      <SidebarHeader className="px-3 pt-3 pb-2 group-data-[collapsible=icon]:hidden">
-        <span className="block truncate px-2 text-center font-space-grotesk text-lg font-semibold text-sidebar-foreground">
-          RAILROAD
-        </span>
+      <SidebarHeader className="px-3 pt-3 pb-2 group-data-[collapsible=icon]:p-2">
+        <div className="relative flex min-h-8 items-center justify-center">
+          <span className="block truncate px-10 text-center font-space-grotesk text-lg font-semibold text-sidebar-foreground group-data-[collapsible=icon]:hidden">
+            RAILROAD
+          </span>
+          <SidebarTrigger
+            className="absolute right-0 hidden size-8 md:inline-flex group-data-[collapsible=icon]:static"
+            title="열차 목록 접기/펼치기"
+          />
+        </div>
+        <div className="group-data-[collapsible=icon]:hidden">
+          <TrainSidebarFilters
+            trains={data.trains}
+            visibleTrainCount={sortedTrains.length}
+          />
+        </div>
       </SidebarHeader>
 
       <SidebarContent>
@@ -56,7 +73,9 @@ export function TrainSidebar() {
               <div className="mx-1 rounded-md bg-sidebar-accent px-3 py-6 text-center text-xs text-sidebar-foreground/65 group-data-[collapsible=icon]:hidden">
                 {data.connectionState === "connecting"
                   ? "열차 정보를 불러오는 중입니다."
-                  : "운행중인 열차가 없습니다."}
+                  : data.trains.length > 0
+                    ? "필터 조건에 맞는 열차가 없습니다."
+                    : "운행중인 열차가 없습니다."}
               </div>
             ) : (
               <SidebarMenu>

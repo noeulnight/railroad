@@ -1,11 +1,9 @@
 import { useEffect } from "react";
-import { useMap } from "react-leaflet";
+import type { Map as MapInstance } from "maplibre-gl";
 
-export function MapResizeHandler() {
-  const map = useMap();
-
+export function MapResizeHandler(props: { map: MapInstance }) {
   useEffect(() => {
-    const container = map.getContainer();
+    const container = props.map.getContainer();
     const visualViewport = window.visualViewport;
     let animationFrameId: number | undefined;
 
@@ -16,11 +14,7 @@ export function MapResizeHandler() {
 
       animationFrameId = requestAnimationFrame(() => {
         animationFrameId = undefined;
-        map.invalidateSize({
-          animate: false,
-          debounceMoveend: true,
-          pan: false,
-        });
+        props.map.resize();
       });
     };
 
@@ -47,7 +41,7 @@ export function MapResizeHandler() {
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [map]);
+  }, [props.map]);
 
   return null;
 }

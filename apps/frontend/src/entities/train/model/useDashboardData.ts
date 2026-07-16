@@ -6,6 +6,7 @@ import { shouldShowStation } from "@/shared/lib/utils";
 import type {
   DashboardData,
   Train,
+  TrainPositionSample,
   TrainCreatedEventData,
   TrainRemovedEventData,
   TrainSnapshotEventData,
@@ -14,6 +15,9 @@ import type {
 
 export function useDashboardData(): DashboardData {
   const [trains, setTrains] = useState<Record<string, Train>>({});
+  const [trainPositionHistory, setTrainPositionHistory] = useState<
+    Record<string, TrainPositionSample[]>
+  >({});
   const [connectionState, setConnectionState] = useState<
     "connecting" | "live" | "reconnecting"
   >("connecting");
@@ -24,6 +28,36 @@ export function useDashboardData(): DashboardData {
 
   useEffect(() => {
     const eventSource = new EventSource(getTrainEventsUrl());
+    const recordPositions = (nextTrains: Train[], observedAt: string) => {
+      const cutoff = Date.parse(observedAt) - 10 * 60 * 1_000;
+
+      setTrainPositionHistory((current) => {
+        const next = { ...current };
+
+        for (const train of nextTrains) {
+          const history = (current[train.id] ?? []).filter(
+            (sample) => Date.parse(sample.observedAt) >= cutoff,
+          );
+          const previous = history.at(-1);
+
+          if (
+            !previous ||
+            previous.longitude !== train.geometry.longitude ||
+            previous.latitude !== train.geometry.latitude
+          ) {
+            history.push({
+              longitude: train.geometry.longitude,
+              latitude: train.geometry.latitude,
+              observedAt,
+            });
+          }
+
+          next[train.id] = history;
+        }
+
+        return next;
+      });
+    };
 
     const handleSnapshot = (event: MessageEvent<string>) => {
       const data = JSON.parse(event.data) as TrainSnapshotEventData;
@@ -31,6 +65,7 @@ export function useDashboardData(): DashboardData {
         data.trains.map((train) => [train.id, train]),
       );
 
+      recordPositions(data.trains, data.polledAt);
       setTrains(nextTrains);
       setLastPolledAt(data.polledAt);
       setConnectionState("live");
@@ -40,6 +75,7 @@ export function useDashboardData(): DashboardData {
     const handleCreated = (event: MessageEvent<string>) => {
       const data = JSON.parse(event.data) as TrainCreatedEventData;
 
+      recordPositions([data.train], data.polledAt);
       setTrains((current) => ({
         ...current,
         [data.train.id]: data.train,
@@ -51,6 +87,7 @@ export function useDashboardData(): DashboardData {
     const handleUpdated = (event: MessageEvent<string>) => {
       const data = JSON.parse(event.data) as TrainUpdatedEventData;
 
+      recordPositions([data.train], data.polledAt);
       setTrains((current) => ({
         ...current,
         [data.train.id]: data.train,
@@ -63,6 +100,11 @@ export function useDashboardData(): DashboardData {
       const data = JSON.parse(event.data) as TrainRemovedEventData;
 
       setTrains((current) => {
+        const next = { ...current };
+        delete next[data.id];
+        return next;
+      });
+      setTrainPositionHistory((current) => {
         const next = { ...current };
         delete next[data.id];
         return next;
@@ -129,6 +171,7 @@ export function useDashboardData(): DashboardData {
       : undefined,
     stations,
     trains: trainList,
+    trainPositionHistory,
     visibleStations,
     zoomLevel,
     setZoomLevel,

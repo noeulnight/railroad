@@ -142,6 +142,7 @@ export function getTrainPrimaryColor(type: string) {
     case "ktx산천":
     case "ktx":
     case "ktx이음":
+    case "ktx청룡":
     case "청룡":
       return "#1B4298";
     case "무궁화":
@@ -168,6 +169,7 @@ export function getTrainImageSrc(type: string) {
     case "ktx":
       return "/ktx-sanchun.png";
     case "ktx이음":
+    case "ktx청룡":
     case "청룡":
       return "/ktx-chungryong.png";
     case "무궁화":

@@ -58,6 +58,12 @@ export type TrainUpdatedEventData = {
   polledAt: string;
 };
 
+export type TrainPositionSample = {
+  longitude: number;
+  latitude: number;
+  observedAt: string;
+};
+
 export type TrainRemovedEventData = {
   id: string;
   polledAt: string;
@@ -70,6 +76,7 @@ export type DashboardData = {
   stationError?: string;
   stations: Station[];
   trains: Train[];
+  trainPositionHistory: Record<string, TrainPositionSample[]>;
   visibleStations: Station[];
   zoomLevel: number;
   setZoomLevel: (zoom: number) => void;

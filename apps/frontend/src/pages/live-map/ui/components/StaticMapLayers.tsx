@@ -1,9 +1,14 @@
-import { memo } from "react";
-import { TileLayer } from "react-leaflet";
+import { memo, useEffect } from "react";
+import type { Map as MapInstance, RasterTileSource } from "maplibre-gl";
 import { MapResizeHandler } from "@/pages/live-map/ui/components/MapResizeHandler";
 import { MapZoomTracker } from "@/pages/live-map/ui/components/MapZoomTracker";
+import {
+  BASE_SOURCE_ID,
+  getBaseTiles,
+} from "@/pages/live-map/ui/components/mapStyle";
 
 export const StaticMapLayers = memo(function StaticMapLayers(props: {
+  map: MapInstance;
   theme: "light" | "dark";
   onZoomChange: (zoom: number) => void;
   onUserMoveStart?: () => void;
@@ -12,6 +17,7 @@ export const StaticMapLayers = memo(function StaticMapLayers(props: {
   focusZoom?: number;
 }) {
   const {
+    map,
     theme,
     onZoomChange,
     onUserMoveStart,
@@ -20,30 +26,35 @@ export const StaticMapLayers = memo(function StaticMapLayers(props: {
     focusZoom,
   } = props;
 
+  useEffect(() => {
+    const updateTiles = () => {
+      const source = map.getSource(BASE_SOURCE_ID) as
+        | RasterTileSource
+        | undefined;
+      source?.setTiles(getBaseTiles(theme));
+    };
+
+    if (map.isStyleLoaded()) {
+      updateTiles();
+      return;
+    }
+
+    map.once("load", updateTiles);
+    return () => {
+      map.off("load", updateTiles);
+    };
+  }, [map, theme]);
+
   return (
     <>
-      <MapResizeHandler />
+      <MapResizeHandler map={map} />
       <MapZoomTracker
+        map={map}
         onZoomChange={onZoomChange}
         onUserMoveStart={onUserMoveStart}
         followPosition={followPosition}
         focusKey={focusKey}
         focusZoom={focusZoom}
-      />
-
-      <TileLayer
-        url={`https://{s}.basemaps.cartocdn.com/${theme === "dark" ? "dark_nolabels" : "light_nolabels"}/{z}/{x}/{y}{r}.png`}
-        subdomains={["a", "b", "c", "d"]}
-        attribution='&copy; <a href="https://openstreetmap.org/copyright">OSM</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
-        maxZoom={20}
-        minZoom={8}
-      />
-
-      <TileLayer
-        url="https://osm.lth.so/tiles/railway/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openrailwaymap.org/">OpenRailwayMap</a> | 열차 정보: <a href="https://www.korail.com/">KORAIL</a>'
-        maxZoom={20}
-        minZoom={8}
       />
     </>
   );
