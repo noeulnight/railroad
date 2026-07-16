@@ -122,10 +122,6 @@ body {
   min-height: 100vh;
 }
 
-.train-map-labels-hidden .train-map-label {
-  display: none;
-}
-
 @layer utilities {
   .scrollbar-hide {
     &::-webkit-scrollbar {

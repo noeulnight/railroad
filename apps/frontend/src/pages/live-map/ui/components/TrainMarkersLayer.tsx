@@ -1,21 +1,56 @@
 import { memo, useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import {
-  Marker as MapLibreMarker,
-  type Map as MapInstance,
+import type {
+  GeoJSONSource,
+  Map as MapInstance,
+  MapLayerMouseEvent,
 } from "maplibre-gl";
 import type { DashboardData, Train } from "@/entities/train/model/types";
 import type { TrainVisualizationMode } from "@/pages/live-map/model/trainVisualization";
 import { getTrainVisualizationColor } from "@/pages/live-map/model/trainVisualization";
 import { easeOutCubic } from "@/shared/lib/utils";
 
+const SOURCE_ID = "train-markers";
+const SHADOW_LAYER_ID = "train-marker-shadows";
+const CIRCLE_LAYER_ID = "train-marker-circles";
+const ARROW_LAYER_ID = "train-marker-arrows";
+const DELAY_LAYER_ID = "train-marker-delays";
+const LABEL_LAYER_ID = "train-marker-labels";
+const ARROW_IMAGE_ID = "train-marker-arrow";
+const INTERACTIVE_LAYER_IDS = [
+  LABEL_LAYER_ID,
+  DELAY_LAYER_ID,
+  ARROW_LAYER_ID,
+  CIRCLE_LAYER_ID,
+];
 const TRAIN_MARKER_EASING_DURATION_MS = 1_400;
+const TRAIN_MARKER_FRAME_INTERVAL_MS = 1_000 / 30;
 const TRAIN_LABEL_MIN_ZOOM = 11.5;
+const IMAGE_PIXEL_RATIO = 2;
+
+type TrainMarkerProperties = {
+  id: string;
+  type: string;
+  color: string;
+  bearing: number;
+  selected: number;
+  delayed: number;
+  labelImageId: string;
+};
+
+type TrainMarkerData = {
+  type: "FeatureCollection";
+  features: Array<{
+    type: "Feature";
+    id: string;
+    properties: TrainMarkerProperties;
+    geometry: { type: "Point"; coordinates: [number, number] };
+  }>;
+};
 
 export const TrainMarkersLayer = memo(function TrainMarkersLayer(props: {
   map: MapInstance;
   trains: DashboardData["trains"];
-  zoomLevel: number;
+  theme: "light" | "dark";
   visualizationMode: TrainVisualizationMode;
   selectedTrainId?: string;
   onTrainToggle: (train: Pick<Train, "id" | "type">, follow?: boolean) => void;
@@ -24,269 +59,362 @@ export const TrainMarkersLayer = memo(function TrainMarkersLayer(props: {
   const {
     map,
     trains,
-    zoomLevel,
+    theme,
     visualizationMode,
     selectedTrainId,
     onTrainToggle,
     onTrainClear,
   } = props;
+  const [layersReady, setLayersReady] = useState(false);
+  const labelImageIdsRef = useRef(new Set<string>());
+  const displayedPositionsRef = useRef(new Map<string, [number, number]>());
 
   useEffect(() => {
-    const container = map.getContainer();
-    let labelsHidden: boolean | undefined;
+    const addLayers = () => {
+      if (map.getSource(SOURCE_ID)) return;
 
-    const syncLabelVisibility = () => {
-      const nextLabelsHidden = map.getZoom() < TRAIN_LABEL_MIN_ZOOM;
-
-      if (nextLabelsHidden === labelsHidden) {
-        return;
-      }
-
-      labelsHidden = nextLabelsHidden;
-      container.classList.toggle(
-        "train-map-labels-hidden",
-        nextLabelsHidden,
-      );
+      map.addSource(SOURCE_ID, {
+        type: "geojson",
+        data: emptyTrainData(),
+      });
+      map.addImage(ARROW_IMAGE_ID, createArrowImage(), {
+        pixelRatio: IMAGE_PIXEL_RATIO,
+      });
+      map.addLayer({
+        id: SHADOW_LAYER_ID,
+        type: "circle",
+        source: SOURCE_ID,
+        paint: {
+          "circle-color": "rgba(15, 23, 42, 0.22)",
+          "circle-blur": 0.35,
+          "circle-radius": [
+            "step",
+            ["zoom"],
+            ["case", ["==", ["get", "selected"], 1], 16, 11],
+            7.5,
+            ["case", ["==", ["get", "selected"], 1], 16, 15],
+          ],
+        },
+      });
+      map.addLayer({
+        id: CIRCLE_LAYER_ID,
+        type: "circle",
+        source: SOURCE_ID,
+        paint: {
+          "circle-color": ["get", "color"],
+          "circle-radius": [
+            "step",
+            ["zoom"],
+            ["case", ["==", ["get", "selected"], 1], 13, 8],
+            7.5,
+            ["case", ["==", ["get", "selected"], 1], 13, 12],
+          ],
+        },
+      });
+      map.addLayer({
+        id: ARROW_LAYER_ID,
+        type: "symbol",
+        source: SOURCE_ID,
+        layout: {
+          "icon-image": ARROW_IMAGE_ID,
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+          "icon-rotate": ["get", "bearing"],
+          "icon-rotation-alignment": "viewport",
+          "icon-size": [
+            "step",
+            ["zoom"],
+            ["case", ["==", ["get", "selected"], 1], 1.1, 0.75],
+            7.5,
+            ["case", ["==", ["get", "selected"], 1], 1.1, 1],
+          ],
+        },
+      });
+      map.addLayer({
+        id: DELAY_LAYER_ID,
+        type: "circle",
+        source: SOURCE_ID,
+        filter: ["==", ["get", "delayed"], 1],
+        paint: {
+          "circle-color": "#ef4444",
+          "circle-radius": 3,
+          "circle-translate": [7, -7],
+          "circle-translate-anchor": "viewport",
+        },
+      });
+      map.addLayer({
+        id: LABEL_LAYER_ID,
+        type: "symbol",
+        source: SOURCE_ID,
+        minzoom: TRAIN_LABEL_MIN_ZOOM,
+        layout: {
+          "icon-image": ["get", "labelImageId"],
+          "icon-anchor": "left",
+          "icon-offset": [14, 0],
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": true,
+        },
+      });
+      setLayersReady(true);
     };
 
-    syncLabelVisibility();
-    map.on("zoom", syncLabelVisibility);
+    if (map.isStyleLoaded()) addLayers();
+    else map.once("load", addLayers);
 
     return () => {
-      map.off("zoom", syncLabelVisibility);
-      container.classList.remove("train-map-labels-hidden");
+      map.off("load", addLayers);
+      for (const layerId of [
+        LABEL_LAYER_ID,
+        DELAY_LAYER_ID,
+        ARROW_LAYER_ID,
+        CIRCLE_LAYER_ID,
+        SHADOW_LAYER_ID,
+      ]) {
+        if (map.getLayer(layerId)) map.removeLayer(layerId);
+      }
+      if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID);
+      for (const imageId of labelImageIdsRef.current) {
+        if (map.hasImage(imageId)) map.removeImage(imageId);
+      }
+      labelImageIdsRef.current.clear();
+      if (map.hasImage(ARROW_IMAGE_ID)) {
+        map.removeImage(ARROW_IMAGE_ID);
+      }
     };
   }, [map]);
 
-  return (
-    <>
-      {trains.map((train) => (
-        <AnimatedTrainMarker
-          key={train.id}
-          map={map}
-          train={train}
-          zoomLevel={zoomLevel}
-          visualizationMode={visualizationMode}
-          isSelected={selectedTrainId === train.id}
-          onTrainToggle={onTrainToggle}
-          onTrainClear={onTrainClear}
-        />
-      ))}
-    </>
-  );
-});
-
-const AnimatedTrainMarker = memo(function AnimatedTrainMarker(props: {
-  map: MapInstance;
-  train: Train;
-  zoomLevel: number;
-  visualizationMode: TrainVisualizationMode;
-  isSelected: boolean;
-  onTrainToggle: (train: Pick<Train, "id" | "type">, follow?: boolean) => void;
-  onTrainClear: () => void;
-}) {
-  const {
-    map,
-    train,
-    zoomLevel,
-    visualizationMode,
-    isSelected,
-    onTrainToggle,
-    onTrainClear,
-  } = props;
-  const targetLatitude = train.geometry.latitude;
-  const targetLongitude = train.geometry.longitude;
-  const markerRef = useRef<MapLibreMarker | undefined>(undefined);
-  const animationFrameRef = useRef<number | undefined>(undefined);
-  const initialPositionRef = useRef<[number, number]>([
-    targetLongitude,
-    targetLatitude,
-  ]);
-  const [markerElement] = useState(() => document.createElement("div"));
-
   useEffect(() => {
-    markerElement.className = "train-map-icon";
-    markerElement.style.width = "24px";
-    markerElement.style.height = "24px";
+    if (!layersReady) return;
 
-    const marker = new MapLibreMarker({
-      element: markerElement,
-      anchor: "center",
-    })
-      .setLngLat(initialPositionRef.current)
-      .addTo(map)
-      .setSubpixelPositioning(true);
+    const source = map.getSource(SOURCE_ID) as GeoJSONSource | undefined;
+    if (!source) return;
 
-    markerRef.current = marker;
+    const nextImageIds = new Set<string>();
+    for (const train of trains) {
+      const color = getTrainVisualizationColor(train, visualizationMode);
+      const imageId = getLabelImageId(train, color, theme);
+      nextImageIds.add(imageId);
 
-    return () => {
-      if (animationFrameRef.current !== undefined) {
-        cancelAnimationFrame(animationFrameRef.current);
+      if (!map.hasImage(imageId)) {
+        map.addImage(imageId, createLabelImage(train, color, theme), {
+          pixelRatio: IMAGE_PIXEL_RATIO,
+        });
       }
-      marker.remove();
-      markerRef.current = undefined;
-    };
-  }, [map, markerElement]);
-
-  useEffect(() => {
-    const marker = markerRef.current;
-
-    if (!marker) {
-      return;
     }
 
-    const startPosition = marker.getLngLat();
+    const previousImageIds = labelImageIdsRef.current;
+    labelImageIdsRef.current = nextImageIds;
+    for (const imageId of previousImageIds) {
+      if (!nextImageIds.has(imageId) && map.hasImage(imageId)) {
+        map.removeImage(imageId);
+      }
+    }
 
-    if (
-      startPosition.lat === targetLatitude &&
-      startPosition.lng === targetLongitude
-    ) {
+    const starts = new Map<string, [number, number]>();
+    let hasMovement = false;
+    for (const train of trains) {
+      const target: [number, number] = [
+        train.geometry.longitude,
+        train.geometry.latitude,
+      ];
+      const start = displayedPositionsRef.current.get(train.id) ?? target;
+      starts.set(train.id, start);
+      hasMovement ||= start[0] !== target[0] || start[1] !== target[1];
+    }
+
+    const updateSource = (progress: number) => {
+      const easedProgress = easeOutCubic(progress);
+      const positions = new Map<string, [number, number]>();
+
+      for (const train of trains) {
+        const start = starts.get(train.id)!;
+        positions.set(train.id, [
+          start[0] + (train.geometry.longitude - start[0]) * easedProgress,
+          start[1] + (train.geometry.latitude - start[1]) * easedProgress,
+        ]);
+      }
+
+      displayedPositionsRef.current = positions;
+      source.setData(
+        createTrainData(
+          { trains, theme, visualizationMode, selectedTrainId },
+          positions,
+        ),
+      );
+    };
+
+    if (!hasMovement) {
+      updateSource(1);
       return;
     }
 
     const animationStartedAt = performance.now();
-
-    const animate = (frameTime: number) => {
+    let lastRenderedAt = 0;
+    let animationFrameId = requestAnimationFrame(function animate(frameTime) {
       const progress = Math.min(
         (frameTime - animationStartedAt) / TRAIN_MARKER_EASING_DURATION_MS,
         1,
       );
-      const easedProgress = easeOutCubic(progress);
 
-      marker.setLngLat([
-        startPosition.lng +
-          (targetLongitude - startPosition.lng) * easedProgress,
-        startPosition.lat +
-          (targetLatitude - startPosition.lat) * easedProgress,
-      ]);
+      if (
+        progress === 1 ||
+        frameTime - lastRenderedAt >= TRAIN_MARKER_FRAME_INTERVAL_MS
+      ) {
+        lastRenderedAt = frameTime;
+        updateSource(progress);
+      }
 
       if (progress < 1) {
-        animationFrameRef.current = requestAnimationFrame(animate);
+        animationFrameId = requestAnimationFrame(animate);
       }
+    });
+
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [
+    layersReady,
+    map,
+    selectedTrainId,
+    theme,
+    trains,
+    visualizationMode,
+  ]);
+
+  useEffect(() => {
+    const handleClick = (event: MapLayerMouseEvent) => {
+      const properties = event.features?.[0]?.properties as
+        | TrainMarkerProperties
+        | undefined;
+      if (!properties) return;
+
+      if (properties.id === selectedTrainId) onTrainClear();
+      else onTrainToggle({ id: properties.id, type: properties.type });
+    };
+    const showPointer = () => {
+      map.getCanvas().style.cursor = "pointer";
+    };
+    const hidePointer = () => {
+      map.getCanvas().style.cursor = "";
     };
 
-    animationFrameRef.current = requestAnimationFrame(animate);
+    map.on("click", INTERACTIVE_LAYER_IDS, handleClick);
+    map.on("mouseenter", INTERACTIVE_LAYER_IDS, showPointer);
+    map.on("mouseleave", INTERACTIVE_LAYER_IDS, hidePointer);
 
     return () => {
-      if (animationFrameRef.current !== undefined) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
+      map.off("click", INTERACTIVE_LAYER_IDS, handleClick);
+      map.off("mouseenter", INTERACTIVE_LAYER_IDS, showPointer);
+      map.off("mouseleave", INTERACTIVE_LAYER_IDS, hidePointer);
+      hidePointer();
     };
-  }, [targetLatitude, targetLongitude]);
+  }, [map, onTrainClear, onTrainToggle, selectedTrainId]);
 
-  const primaryColor = getTrainVisualizationColor(train, visualizationMode);
-  const bearing = ((train.geometry.bearing * 180) / Math.PI - 90 + 360) % 360;
-  const isOverview = zoomLevel < 7.5;
-  const showLabel = zoomLevel >= TRAIN_LABEL_MIN_ZOOM;
-  const isDelayed = train.delay > 0;
+  return null;
+});
 
-  return createPortal(
-    <button
-      type="button"
-      aria-label={`${train.type} ${train.id} 열차${isDelayed ? `, ${train.delay}분 지연` : ""} 선택`}
-      aria-pressed={isSelected}
-      className={`group relative flex h-6 w-max cursor-pointer items-center gap-1.5 border-0 bg-transparent p-0 transition-transform hover:scale-110 focus-visible:outline-none ${isSelected ? "scale-110" : ""}`}
-      onClick={() => {
-        if (isSelected) {
-          onTrainClear();
-          return;
-        }
-
-        onTrainToggle(train);
-      }}
-    >
-      <span
-        className={`relative flex shrink-0 items-center justify-center rounded-full transition-shadow ${isOverview ? "size-4" : "size-6"}`}
-        style={{
-          backgroundColor: primaryColor,
-          boxShadow: isOverview
-            ? "0 2px 7px rgba(15,23,42,0.24)"
-            : "0 4px 12px rgba(15,23,42,0.22)",
-        }}
-      >
-        <span
-          className={`flex items-center justify-center ${isOverview ? "size-3" : "size-[18px]"}`}
-          style={{ transform: `rotate(${bearing}deg)` }}
-        >
-          <svg
-            aria-hidden="true"
-            fill="none"
-            height={isOverview ? 11 : 15}
-            shapeRendering="geometricPrecision"
-            viewBox="0 0 24 24"
-            width={isOverview ? 11 : 15}
-          >
-            <path
-              d="M5.5 5.5 19.5 12l-14 6.5L8 12 5.5 5.5Z"
-              fill="rgba(255,255,255,0.92)"
-            />
-          </svg>
-        </span>
-        {isDelayed ? (
-          <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-red-500 shadow-sm" />
-        ) : null}
-      </span>
-      {showLabel ? (
-        <span
-          className="train-map-label flex items-center gap-1.5 whitespace-nowrap rounded-full border border-border/70 bg-card/95 px-2 py-1 text-[11px] leading-none font-bold text-card-foreground shadow-[0_4px_12px_rgba(15,23,42,0.14)] backdrop-blur-sm"
-        >
-          <span
-            className="size-1.5 rounded-full"
-            style={{ backgroundColor: primaryColor }}
-          />
-          <span>
-            {train.type}#{train.id}
-          </span>
-          {isDelayed ? (
-            <span className="font-semibold text-red-500">+{train.delay}분</span>
-          ) : null}
-        </span>
-      ) : null}
-    </button>,
-    markerElement,
-  );
-}, areTrainMarkerPropsEqual);
-
-function areTrainMarkerPropsEqual(
-  previous: Readonly<{
-    map: MapInstance;
-    train: Train;
-    zoomLevel: number;
+function createTrainData(
+  props: {
+    trains: DashboardData["trains"];
+    theme: "light" | "dark";
     visualizationMode: TrainVisualizationMode;
-    isSelected: boolean;
-    onTrainToggle: (
-      train: Pick<Train, "id" | "type">,
-      follow?: boolean,
-    ) => void;
-    onTrainClear: () => void;
-  }>,
-  next: Readonly<{
-    map: MapInstance;
-    train: Train;
-    zoomLevel: number;
-    visualizationMode: TrainVisualizationMode;
-    isSelected: boolean;
-    onTrainToggle: (
-      train: Pick<Train, "id" | "type">,
-      follow?: boolean,
-    ) => void;
-    onTrainClear: () => void;
-  }>,
+    selectedTrainId?: string;
+  },
+  positions: Map<string, [number, number]>,
+): TrainMarkerData {
+  return {
+    type: "FeatureCollection",
+    features: props.trains.map((train) => {
+      const color = getTrainVisualizationColor(train, props.visualizationMode);
+
+      return {
+        type: "Feature",
+        id: train.id,
+        properties: {
+          id: train.id,
+          type: train.type,
+          color,
+          bearing:
+            ((train.geometry.bearing * 180) / Math.PI - 90 + 360) % 360,
+          selected: train.id === props.selectedTrainId ? 1 : 0,
+          delayed: train.delay > 0 ? 1 : 0,
+          labelImageId: getLabelImageId(train, color, props.theme),
+        },
+        geometry: {
+          type: "Point",
+          coordinates: positions.get(train.id) ?? [
+            train.geometry.longitude,
+            train.geometry.latitude,
+          ],
+        },
+      };
+    }),
+  };
+}
+
+function emptyTrainData(): TrainMarkerData {
+  return { type: "FeatureCollection", features: [] };
+}
+
+function getLabelImageId(
+  train: Train,
+  color: string,
+  theme: "light" | "dark",
 ) {
-  return (
-    previous.map === next.map &&
-    previous.zoomLevel === next.zoomLevel &&
-    previous.visualizationMode === next.visualizationMode &&
-    previous.isSelected === next.isSelected &&
-    previous.onTrainToggle === next.onTrainToggle &&
-    previous.onTrainClear === next.onTrainClear &&
-    previous.train.id === next.train.id &&
-    previous.train.type === next.train.type &&
-    previous.train.direction === next.train.direction &&
-    previous.train.delay === next.train.delay &&
-    previous.train.speedKmh === next.train.speedKmh &&
-    previous.train.geometry.latitude === next.train.geometry.latitude &&
-    previous.train.geometry.longitude === next.train.geometry.longitude &&
-    previous.train.geometry.bearing === next.train.geometry.bearing
-  );
+  return `train-label:${theme}:${color}:${train.type}:${train.id}:${train.delay}`;
+}
+
+function createArrowImage() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 18 * IMAGE_PIXEL_RATIO;
+  canvas.height = 18 * IMAGE_PIXEL_RATIO;
+  const context = canvas.getContext("2d")!;
+  context.scale(IMAGE_PIXEL_RATIO, IMAGE_PIXEL_RATIO);
+  context.fillStyle = "rgba(255, 255, 255, 0.92)";
+  context.beginPath();
+  context.moveTo(3, 4.5);
+  context.lineTo(16, 9);
+  context.lineTo(3, 13.5);
+  context.lineTo(6, 9);
+  context.closePath();
+  context.fill();
+  return context.getImageData(0, 0, canvas.width, canvas.height);
+}
+
+function createLabelImage(
+  train: Train,
+  color: string,
+  theme: "light" | "dark",
+) {
+  const label = `${train.type}#${train.id}`;
+  const delay = train.delay > 0 ? ` +${train.delay}분` : "";
+  const measurementCanvas = document.createElement("canvas");
+  const measurementContext = measurementCanvas.getContext("2d")!;
+  measurementContext.font = "700 11px system-ui, sans-serif";
+  const labelWidth = measurementContext.measureText(label).width;
+  const delayWidth = measurementContext.measureText(delay).width;
+  const width = Math.ceil(20 + labelWidth + delayWidth + (delay ? 4 : 0));
+  const height = 22;
+  const canvas = document.createElement("canvas");
+  canvas.width = width * IMAGE_PIXEL_RATIO;
+  canvas.height = height * IMAGE_PIXEL_RATIO;
+  const context = canvas.getContext("2d")!;
+  context.scale(IMAGE_PIXEL_RATIO, IMAGE_PIXEL_RATIO);
+  context.beginPath();
+  context.roundRect(0.5, 0.5, width - 1, height - 1, height / 2);
+  context.fillStyle = theme === "dark" ? "rgba(24, 24, 27, 0.95)" : "rgba(255, 255, 255, 0.95)";
+  context.fill();
+  context.strokeStyle = theme === "dark" ? "rgba(63, 63, 70, 0.8)" : "rgba(226, 232, 240, 0.9)";
+  context.stroke();
+  context.beginPath();
+  context.arc(8, height / 2, 3, 0, Math.PI * 2);
+  context.fillStyle = color;
+  context.fill();
+  context.font = "700 11px system-ui, sans-serif";
+  context.textBaseline = "middle";
+  context.fillStyle = theme === "dark" ? "#fafafa" : "#18181b";
+  context.fillText(label, 14, height / 2);
+  if (delay) {
+    context.fillStyle = "#ef4444";
+    context.fillText(delay, 14 + labelWidth + 4, height / 2);
+  }
+  return context.getImageData(0, 0, canvas.width, canvas.height);
 }

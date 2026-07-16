@@ -210,7 +210,7 @@ export function LiveMapPage() {
           <TrainMarkersLayer
             map={map}
             trains={visibleTrains}
-            zoomLevel={data.zoomLevel}
+            theme={theme}
             visualizationMode={visualizationMode}
             selectedTrainId={selectedTrainId}
             onTrainToggle={handleTrainToggle}

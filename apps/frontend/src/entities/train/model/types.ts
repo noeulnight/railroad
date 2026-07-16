@@ -61,7 +61,7 @@ export type TrainUpdatedEventData = {
 export type TrainPositionSample = {
   longitude: number;
   latitude: number;
-  observedAt: string;
+  observedAt: number;
 };
 
 export type TrainRemovedEventData = {

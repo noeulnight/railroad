@@ -28,15 +28,21 @@ export function useDashboardData(): DashboardData {
 
   useEffect(() => {
     const eventSource = new EventSource(getTrainEventsUrl());
+    const pendingDeltas: Array<
+      | { train: Train; polledAt: string }
+      | { id: string; polledAt: string }
+    > = [];
+    let flushTimer: ReturnType<typeof setTimeout> | undefined;
     const recordPositions = (nextTrains: Train[], observedAt: string) => {
-      const cutoff = Date.parse(observedAt) - 10 * 60 * 1_000;
+      const observedAtMs = Date.parse(observedAt);
+      const cutoff = observedAtMs - 10 * 60 * 1_000;
 
       setTrainPositionHistory((current) => {
         const next = { ...current };
 
         for (const train of nextTrains) {
           const history = (current[train.id] ?? []).filter(
-            (sample) => Date.parse(sample.observedAt) >= cutoff,
+            (sample) => sample.observedAt >= cutoff,
           );
           const previous = history.at(-1);
 
@@ -48,7 +54,7 @@ export function useDashboardData(): DashboardData {
             history.push({
               longitude: train.geometry.longitude,
               latitude: train.geometry.latitude,
-              observedAt,
+              observedAt: observedAtMs,
             });
           }
 
@@ -58,9 +64,53 @@ export function useDashboardData(): DashboardData {
         return next;
       });
     };
+    const flushDeltas = () => {
+      flushTimer = undefined;
+      const deltas = pendingDeltas.splice(0);
+      const upsertedTrains = deltas.flatMap((delta) =>
+        "train" in delta ? [delta.train] : [],
+      );
+      const removedIds = deltas.flatMap((delta) =>
+        "id" in delta ? [delta.id] : [],
+      );
+      const polledAt = deltas.at(-1)?.polledAt;
+
+      setTrains((current) => {
+        const next = { ...current };
+
+        for (const delta of deltas) {
+          if ("train" in delta) next[delta.train.id] = delta.train;
+          else delete next[delta.id];
+        }
+
+        return next;
+      });
+
+      if (polledAt && upsertedTrains.length > 0) {
+        recordPositions(upsertedTrains, polledAt);
+      }
+      if (removedIds.length > 0) {
+        setTrainPositionHistory((current) => {
+          const next = { ...current };
+          for (const id of removedIds) delete next[id];
+          return next;
+        });
+      }
+
+      setLastPolledAt(polledAt);
+      setConnectionState("live");
+    };
+    const enqueueDelta = (delta: (typeof pendingDeltas)[number]) => {
+      pendingDeltas.push(delta);
+      if (flushTimer !== undefined) clearTimeout(flushTimer);
+      flushTimer = setTimeout(flushDeltas, 16);
+    };
 
     const handleSnapshot = (event: MessageEvent<string>) => {
       const data = JSON.parse(event.data) as TrainSnapshotEventData;
+      if (flushTimer !== undefined) clearTimeout(flushTimer);
+      flushTimer = undefined;
+      pendingDeltas.length = 0;
       const nextTrains = Object.fromEntries(
         data.trains.map((train) => [train.id, train]),
       );
@@ -74,43 +124,17 @@ export function useDashboardData(): DashboardData {
 
     const handleCreated = (event: MessageEvent<string>) => {
       const data = JSON.parse(event.data) as TrainCreatedEventData;
-
-      recordPositions([data.train], data.polledAt);
-      setTrains((current) => ({
-        ...current,
-        [data.train.id]: data.train,
-      }));
-      setLastPolledAt(data.polledAt);
-      setConnectionState("live");
+      enqueueDelta(data);
     };
 
     const handleUpdated = (event: MessageEvent<string>) => {
       const data = JSON.parse(event.data) as TrainUpdatedEventData;
-
-      recordPositions([data.train], data.polledAt);
-      setTrains((current) => ({
-        ...current,
-        [data.train.id]: data.train,
-      }));
-      setLastPolledAt(data.polledAt);
-      setConnectionState("live");
+      enqueueDelta(data);
     };
 
     const handleRemoved = (event: MessageEvent<string>) => {
       const data = JSON.parse(event.data) as TrainRemovedEventData;
-
-      setTrains((current) => {
-        const next = { ...current };
-        delete next[data.id];
-        return next;
-      });
-      setTrainPositionHistory((current) => {
-        const next = { ...current };
-        delete next[data.id];
-        return next;
-      });
-      setLastPolledAt(data.polledAt);
-      setConnectionState("live");
+      enqueueDelta(data);
     };
 
     const handleOpen = () => {
@@ -131,6 +155,7 @@ export function useDashboardData(): DashboardData {
     eventSource.onerror = handleError;
 
     return () => {
+      if (flushTimer !== undefined) clearTimeout(flushTimer);
       eventSource.removeEventListener(
         "snapshot",
         handleSnapshot as EventListener,

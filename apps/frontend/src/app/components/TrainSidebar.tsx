@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { ArrowDown, ArrowRight, ArrowUp, Clock } from "lucide-react";
 import {
   SidebarContent,
@@ -103,7 +103,7 @@ export function TrainSidebar() {
   );
 }
 
-function TrainSidebarItem(props: {
+const TrainSidebarItem = memo(function TrainSidebarItem(props: {
   train: Train;
   isActive: boolean;
   onSelect: (train: Pick<Train, "id" | "type">, follow?: boolean) => void;
@@ -156,7 +156,7 @@ function TrainSidebarItem(props: {
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
-}
+});
 
 function TrainRouteLabel(props: { train: Train }) {
   const { current, next } = getTrainRouteStations(props.train);
