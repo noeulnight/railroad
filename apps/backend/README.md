@@ -96,3 +96,8 @@ Nest is an MIT-licensed open source project. It can grow thanks to the sponsors 
 ## License
 
 Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+# MCP
+
+The same backend exposes Streamable HTTP MCP at `POST /mcp` (also supports
+`GET` and `DELETE` as required by the protocol). It provides `list_trains` and
+`get_train_detail`.

@@ -8,6 +8,7 @@ import { configurationValidationSchema } from './config/configuration.validation
 import { serverConfig } from './config/configs/server.config';
 import { PublicApiModule } from './public-api/public-api.module';
 import { RailwayMapModule } from './railway-map/railway-map.module';
+import { McpModule } from './mcp/mcp.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { RailwayMapModule } from './railway-map/railway-map.module';
     KorailModule,
     PublicApiModule,
     RailwayMapModule,
+    McpModule,
   ],
 })
 export class AppModule {}

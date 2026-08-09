@@ -9,5 +9,6 @@ import { PublicTrainController } from './public-train.controller';
   imports: [KorailModule, TrainModule],
   controllers: [PublicTrainController, PublicStationController],
   providers: [PublicApiService],
+  exports: [PublicApiService],
 })
 export class PublicApiModule {}
