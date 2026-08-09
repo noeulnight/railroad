@@ -32,6 +32,15 @@ describe('calculateTrainSpeedKmh', () => {
     expect(calculateTrainSpeedKmh(previous, current, 5_000)).toBeNull();
   });
 
+  it('uses the train-specific maximum speed when provided', () => {
+    const current = {
+      ...previous,
+      latitude: previous.latitude + 0.0089932,
+    };
+
+    expect(calculateTrainSpeedKmh(previous, current, 10_000, 300)).toBeNull();
+  });
+
   it('rejects samples without positive elapsed time', () => {
     expect(calculateTrainSpeedKmh(previous, previous, 0)).toBeNull();
   });

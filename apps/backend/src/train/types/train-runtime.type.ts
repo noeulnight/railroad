@@ -20,6 +20,10 @@ export type TrainPollResult = {
 export type TrainPositionSample = {
   geometry: TrainGeometry;
   observedAt: number;
+};
+
+export type TrainPositionHistory = {
+  samples: TrainPositionSample[];
   speedKmh: number | null;
 };
 

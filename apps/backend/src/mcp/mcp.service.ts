@@ -7,6 +7,7 @@ import { Direction } from 'src/korail/interfaces/train.interface';
 import { PublicApiService } from 'src/public-api/public-api.service';
 import { z } from 'zod';
 import { filterTrains } from './utils/filter-trains.util';
+import { getTrainMapUrl } from './utils/train-map-url.util';
 
 @Injectable()
 export class McpService implements OnModuleDestroy {
@@ -82,7 +83,10 @@ export class McpService implements OnModuleDestroy {
         const result = await this.publicApiService.getTrains();
         const trains = filterTrains(result.trains, filters);
         return this.text({
-          trains,
+          trains: trains.map((train) => ({
+            ...train,
+            mapUrl: getTrainMapUrl(train),
+          })),
           total: trains.length,
           polledAt: result.polledAt,
           availableTypes: [
@@ -112,7 +116,14 @@ export class McpService implements OnModuleDestroy {
           this.publicApiService.getSchedule(trainNo, serviceDate),
         ]);
         const current = list.trains.find((train) => train.trainNo === trainNo);
-        return this.text({ trainNo, current: current ?? null, schedule });
+        return this.text({
+          trainNo,
+          mapUrl: current ? getTrainMapUrl(current) : null,
+          current: current
+            ? { ...current, mapUrl: getTrainMapUrl(current) }
+            : null,
+          schedule,
+        });
       },
     );
 

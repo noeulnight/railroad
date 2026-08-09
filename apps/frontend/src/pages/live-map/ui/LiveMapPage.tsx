@@ -23,6 +23,7 @@ import { TrainMarkersLayer } from "@/pages/live-map/ui/components/TrainMarkersLa
 import { TrainPopup } from "@/pages/live-map/ui/components/TrainPopup";
 import { TrainTrailLayer } from "@/pages/live-map/ui/components/TrainTrailLayer";
 import { getTrainPrimaryColor } from "@/shared/lib/utils";
+import { normalizeTrainType } from "@/shared/lib/utils";
 
 const INITIAL_POSITION: [number, number] = [127.83, 36.17];
 const MAP_BOUNDS: [[number, number], [number, number]] = [
@@ -42,6 +43,7 @@ export function LiveMapPage() {
   const data = useTrainDashboard();
   const {
     selectedTrainId,
+    selectedTrainType,
     selectedStationName,
     isFollowingTrain,
     selectTrain,
@@ -54,7 +56,10 @@ export function LiveMapPage() {
     [data.trains, filters],
   );
   const selectedTrain = data.trains.find(
-    (train) => train.id === selectedTrainId,
+    (train) =>
+      train.id === selectedTrainId &&
+      (!selectedTrainType ||
+        normalizeTrainType(train.type) === selectedTrainType),
   );
   const selectedStation = data.stations.find(
     (station) => station.name === selectedStationName,
@@ -104,12 +109,19 @@ export function LiveMapPage() {
 
   useEffect(() => {
     if (
+      data.lastPolledAt &&
       selectedTrainId &&
-      !visibleTrains.some((train) => train.id === selectedTrainId)
+      (!selectedTrain || !visibleTrains.includes(selectedTrain))
     ) {
       clearSelectedTrain();
     }
-  }, [clearSelectedTrain, selectedTrainId, visibleTrains]);
+  }, [
+    clearSelectedTrain,
+    data.lastPolledAt,
+    selectedTrain,
+    selectedTrainId,
+    visibleTrains,
+  ]);
 
   useEffect(() => {
     if (!mapContainerRef.current) {

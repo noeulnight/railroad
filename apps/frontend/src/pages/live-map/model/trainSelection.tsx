@@ -10,8 +10,8 @@ import { TrainSelectionContext } from "@/pages/live-map/model/trainSelectionCont
 import { normalizeTrainType } from "@/shared/lib/utils";
 
 export function TrainSelectionProvider(props: PropsWithChildren) {
-  const [manualSelectedTrainId, setManualSelectedTrainId] =
-    useState<string>();
+  const [manualSelectedTrain, setManualSelectedTrain] =
+    useState<Pick<Train, "id" | "type">>();
   const [isManuallyFollowingTrain, setIsManuallyFollowingTrain] =
     useState(false);
   const location = useLocation();
@@ -29,7 +29,12 @@ export function TrainSelectionProvider(props: PropsWithChildren) {
   }, [location.pathname, location.search]);
   const selectedTrainId =
     urlTrainSelection?.id ??
-    (urlTrainSelection ? undefined : manualSelectedTrainId);
+    (urlTrainSelection ? undefined : manualSelectedTrain?.id);
+  const selectedTrainType =
+    urlTrainSelection?.type ??
+    (urlTrainSelection
+      ? undefined
+      : normalizeTrainType(manualSelectedTrain?.type));
   const selectedStationName =
     location.pathname === "/map" && !selectedTrainId
       ? new URLSearchParams(location.search).get("station")?.trim() || undefined
@@ -66,7 +71,7 @@ export function TrainSelectionProvider(props: PropsWithChildren) {
 
   const selectTrain = useCallback(
     (train: Pick<Train, "id" | "type">, follow = true) => {
-      setManualSelectedTrainId(train.id);
+      setManualSelectedTrain(train);
       setIsManuallyFollowingTrain(follow);
       updateTrainSearchParams(train);
     },
@@ -74,14 +79,14 @@ export function TrainSelectionProvider(props: PropsWithChildren) {
   );
 
   const clearSelectedTrain = useCallback(() => {
-    setManualSelectedTrainId(undefined);
+    setManualSelectedTrain(undefined);
     setIsManuallyFollowingTrain(false);
     updateTrainSearchParams(undefined);
   }, [updateTrainSearchParams]);
 
   const selectStation = useCallback(
     (stationName: string) => {
-      setManualSelectedTrainId(undefined);
+      setManualSelectedTrain(undefined);
       setIsManuallyFollowingTrain(false);
       const nextParams = new URLSearchParams(location.search);
 
@@ -115,6 +120,7 @@ export function TrainSelectionProvider(props: PropsWithChildren) {
     <TrainSelectionContext.Provider
       value={{
         selectedTrainId,
+        selectedTrainType,
         selectedStationName,
         isFollowingTrain,
         selectTrain,

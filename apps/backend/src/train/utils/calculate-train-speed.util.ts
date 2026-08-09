@@ -1,6 +1,6 @@
 import {
   TRAIN_EARTH_RADIUS_KM,
-  TRAIN_MAX_PLAUSIBLE_SPEED_KMH,
+  TRAIN_FALLBACK_MAX_SPEED_KMH,
   TRAIN_SPEED_ROUNDING_FACTOR,
 } from '../constants/train.constants';
 import type { TrainGeometry } from '../interfaces/train.interface';
@@ -16,6 +16,7 @@ export function calculateTrainSpeedKmh(
   previous: TrainGeometry,
   current: TrainGeometry,
   elapsedMilliseconds: number,
+  maximumSpeedKmh = TRAIN_FALLBACK_MAX_SPEED_KMH,
 ): number | null {
   if (elapsedMilliseconds <= 0) {
     return null;
@@ -38,7 +39,7 @@ export function calculateTrainSpeedKmh(
   const elapsedHours = elapsedMilliseconds / (60 * 60 * 1_000);
   const speedKmh = distanceKilometers / elapsedHours;
 
-  if (!Number.isFinite(speedKmh) || speedKmh > TRAIN_MAX_PLAUSIBLE_SPEED_KMH) {
+  if (!Number.isFinite(speedKmh) || speedKmh > maximumSpeedKmh) {
     return null;
   }
 

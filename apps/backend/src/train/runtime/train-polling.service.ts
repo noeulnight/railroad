@@ -18,9 +18,13 @@ import {
 import { TrainStreamBroadcasterService } from './train-stream-broadcaster.service';
 import type {
   TrainPollResult,
-  TrainPositionSample,
+  TrainPositionHistory,
 } from '../types/train-runtime.type';
-import { TRAIN_POLL_INTERVAL_MS } from '../constants/train.constants';
+import {
+  TRAIN_FALLBACK_MAX_SPEED_KMH,
+  TRAIN_MAX_SPEED_KMH_BY_TYPE,
+  TRAIN_POLL_INTERVAL_MS,
+} from '../constants/train.constants';
 
 @Injectable()
 export class TrainPollingService implements OnModuleInit, OnModuleDestroy {
@@ -31,7 +35,7 @@ export class TrainPollingService implements OnModuleInit, OnModuleDestroy {
   private pollingPromise?: Promise<void>;
   private pollingPromiseSessionId?: number;
   private pollingTimer?: ReturnType<typeof setInterval>;
-  private positionSamples = new Map<string, TrainPositionSample>();
+  private positionSamples = new Map<string, TrainPositionHistory>();
 
   constructor(
     private readonly korailService: KorailService,
@@ -164,38 +168,81 @@ export class TrainPollingService implements OnModuleInit, OnModuleDestroy {
   }
 
   private attachEstimatedSpeed(train: Train, observedAt: number): Train {
-    const previousSample = this.positionSamples.get(train.id);
+    const history = this.positionSamples.get(train.id);
 
-    if (!previousSample) {
+    if (!history) {
       this.positionSamples.set(train.id, {
-        geometry: { ...train.geometry },
-        observedAt,
+        samples: [{ geometry: { ...train.geometry }, observedAt }],
         speedKmh: null,
       });
 
       return { ...train, speedKmh: null };
     }
 
-    if (hasSameTrainPosition(previousSample.geometry, train.geometry)) {
-      return { ...train, speedKmh: previousSample.speedKmh };
-    }
+    const previousSample = history.samples.at(-1);
 
-    const speedKmh = calculateTrainSpeedKmh(
-      previousSample.geometry,
-      train.geometry,
-      observedAt - previousSample.observedAt,
-    );
-
-    if (speedKmh === null) {
+    if (!previousSample) {
       return { ...train, speedKmh: null };
     }
 
+    if (hasSameTrainPosition(previousSample.geometry, train.geometry)) {
+      return { ...train, speedKmh: history.speedKmh };
+    }
+
+    const maximumSpeedKmh = this.getMaximumSpeedKmh(train.type);
+    const latestSpeedKmh = calculateTrainSpeedKmh(
+      previousSample.geometry,
+      train.geometry,
+      observedAt - previousSample.observedAt,
+      maximumSpeedKmh,
+    );
+
+    if (latestSpeedKmh === null) {
+      return { ...train, speedKmh: null };
+    }
+
+    const olderSample = history.samples.at(-2);
+    if (!olderSample) {
+      this.positionSamples.set(train.id, {
+        samples: [
+          previousSample,
+          { geometry: { ...train.geometry }, observedAt },
+        ],
+        speedKmh: latestSpeedKmh,
+      });
+
+      return { ...train, speedKmh: latestSpeedKmh };
+    }
+
+    const previousSpeedKmh = calculateTrainSpeedKmh(
+      olderSample.geometry,
+      previousSample.geometry,
+      previousSample.observedAt - olderSample.observedAt,
+      maximumSpeedKmh,
+    );
+
+    if (previousSpeedKmh === null) {
+      return { ...train, speedKmh: null };
+    }
+
+    const speedKmh =
+      Math.round(((previousSpeedKmh + latestSpeedKmh) / 2) * 10) / 10;
+
     this.positionSamples.set(train.id, {
-      geometry: { ...train.geometry },
-      observedAt,
+      samples: [
+        ...history.samples.slice(-1),
+        { geometry: { ...train.geometry }, observedAt },
+      ],
       speedKmh,
     });
 
     return { ...train, speedKmh };
+  }
+
+  private getMaximumSpeedKmh(type: string): number {
+    return (
+      TRAIN_MAX_SPEED_KMH_BY_TYPE[type.toUpperCase()] ??
+      TRAIN_FALLBACK_MAX_SPEED_KMH
+    );
   }
 }

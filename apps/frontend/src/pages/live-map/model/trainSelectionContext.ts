@@ -3,6 +3,7 @@ import type { Train } from "@/entities/train/model/types";
 
 export type TrainSelectionContextValue = {
   selectedTrainId?: string;
+  selectedTrainType?: string;
   selectedStationName?: string;
   isFollowingTrain: boolean;
   selectTrain: (train: Pick<Train, "id" | "type">, follow?: boolean) => void;

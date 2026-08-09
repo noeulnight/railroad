@@ -151,6 +151,61 @@ describe('TrainPollingService', () => {
     expect(recoveredResult?.deltas[0]).toMatchObject({ type: 'updated' });
   });
 
+  it('rejects a speed above the train type maximum', async () => {
+    jest.useFakeTimers();
+    const firstTrain = createTrain({ type: 'KTX-이음' });
+    const movedTrain = createTrain({
+      type: 'KTX-이음',
+      geometry: {
+        ...firstTrain.geometry,
+        latitude: firstTrain.geometry.latitude + 0.0037468,
+      },
+    });
+    korailService.getTrains
+      .mockResolvedValueOnce([firstTrain])
+      .mockResolvedValueOnce([movedTrain]);
+
+    service.start();
+    await flushPromises();
+    jest.advanceTimersByTime(5_000);
+    await flushPromises();
+
+    const result = broadcaster.publishPollResult.mock.calls.at(-1)?.[0];
+    expect(result?.batch.trains[0].speedKmh).toBeNull();
+  });
+
+  it('averages the last two valid movement intervals', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-03-09T00:00:00.000Z'));
+    const firstTrain = createTrain();
+    const secondTrain = createTrain({
+      geometry: {
+        ...firstTrain.geometry,
+        latitude: firstTrain.geometry.latitude + 0.0024978,
+      },
+    });
+    const thirdTrain = createTrain({
+      geometry: {
+        ...secondTrain.geometry,
+        latitude: secondTrain.geometry.latitude + 0.0037468,
+      },
+    });
+    korailService.getTrains
+      .mockResolvedValueOnce([firstTrain])
+      .mockResolvedValueOnce([secondTrain])
+      .mockResolvedValueOnce([thirdTrain]);
+
+    service.start();
+    await flushPromises();
+    jest.advanceTimersByTime(5_000);
+    await flushPromises();
+    jest.advanceTimersByTime(5_000);
+    await flushPromises();
+
+    const result = broadcaster.publishPollResult.mock.calls.at(-1)?.[0];
+    expect(result?.batch.trains[0].speedKmh).toBeCloseTo(250, 0);
+  });
+
   it('stops polling cleanly', async () => {
     jest.useFakeTimers();
     korailService.getTrains.mockResolvedValue([createTrain()]);
