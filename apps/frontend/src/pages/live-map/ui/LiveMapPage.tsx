@@ -108,22 +108,6 @@ export function LiveMapPage() {
   initialZoomRef.current ??= data.zoomLevel;
 
   useEffect(() => {
-    if (
-      data.lastPolledAt &&
-      selectedTrainId &&
-      (!selectedTrain || !visibleTrains.includes(selectedTrain))
-    ) {
-      clearSelectedTrain();
-    }
-  }, [
-    clearSelectedTrain,
-    data.lastPolledAt,
-    selectedTrain,
-    selectedTrainId,
-    visibleTrains,
-  ]);
-
-  useEffect(() => {
     if (!mapContainerRef.current) {
       return;
     }
